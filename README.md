@@ -5,7 +5,7 @@ results (Find → Verification plan → Fix) plus a full report pack. It is serv
 defect-fix agent can call it.
 
 ```
-Gemini Enterprise → Defect-Fix agent (Agent Engine) ──A2A──▶ CodeMender Analysis agent (Cloud Run)
+Gemini Enterprise → Defect-Fix agent (Agent Engine) ──A2A──▶ CodeMender Analysis agent (Agent Engine)
                                                                    │ clone → scan → reports (HTML/MD/JSON/SARIF/CSV/diff)
 ```
 
@@ -38,20 +38,36 @@ Example output for the demo app: [`docs/sample-report/`](docs/sample-report/).
 pip install -r requirements-dev.txt
 pytest
 export GOOGLE_GENAI_USE_VERTEXAI=true GOOGLE_CLOUD_PROJECT=<proj> GOOGLE_CLOUD_LOCATION=us-central1
-adk web .                                     # chat UI; ask: "analyse demo/vulnerable-app"
-uvicorn codemender_agent.a2a_app:a2a_app --port 8080   # A2A server
-curl localhost:8080/.well-known/agent-card.json
+adk web .        # chat UI; ask: "analyse demo/vulnerable-app"
 ```
-Private repos: set `GITHUB_TOKEN`. Optional `CODEMENDER_REPORT_BUCKET` uploads reports to GCS and returns `gs://` URIs
-(A2A text responses cannot carry the HTML file inline).
+Private repos: set `GITHUB_TOKEN`. If the host has no `git` binary (Agent Engine), github.com repos are fetched as a tarball.
 
-## Deploy and connect
+## Deploy to Agent Engine (A2A)
 ```bash
-PROJECT=<proj> REGION=us-central1 BUCKET=<reports-bucket> ./deploy/deploy_cloud_run.sh
+gcloud auth application-default login
+python deploy/deploy_agent_engine.py --project <proj> --location us-central1 \
+  --staging-bucket gs://<staging-bucket> --reports-bucket gs://<reports-bucket-name>   # bucket name only for reports
 ```
-Grant the defect-fix agent's service account `roles/run.invoker`, then follow
-[`deploy/defect_fix_client_example.py`](deploy/defect_fix_client_example.py) to add it as a `RemoteA2aAgent`.
-Not yet verified end-to-end against a live Gemini model or Cloud Run; the A2A card and tools are covered by local checks.
+It prints the resource name, A2A endpoint and agent-card URL. Checks after deploy:
+1. `curl -H "Authorization: Bearer $(gcloud auth print-access-token)" <card URL>` returns the agent card.
+2. Reports: grant the engine's service account `roles/storage.objectAdmin` on the reports bucket and
+   `roles/iam.serviceAccountTokenCreator` on itself (for 24h signed links to the HTML dashboard). Without signing,
+   the agent returns `gs://` URIs, and the Markdown summary can always be returned in chat.
+3. Sessions and tasks are in memory, so the deploy pins `min/max_instances=1`. Raise that only after moving state
+   to a persistent session service.
+
+## Connect the defect-fix agent
+Add the CodeMender agent as a `RemoteA2aAgent` in the defect-fix agent
+([`deploy/defect_fix_client_example.py`](deploy/defect_fix_client_example.py)), redeploy it, and give its runtime
+service account `roles/aiplatform.user`.
+
+## Gemini Enterprise
+Register CodeMender via the Gemini Enterprise admin (Agents → add a custom A2A agent, pasting the agent card JSON) or
+the registration API, as you did for the defect-fix agent. Check Google's current "register ADK and A2A agents in
+Gemini Enterprise" doc, since the steps move. If registration requires an `url` in the card that Gemini Enterprise
+can reach, use the A2A endpoint printed by the deploy script.
+Status: deployment code is written against the installed SDK (`google-cloud-aiplatform` 2.6.0, `a2a-sdk` 1.2.3) and the
+`A2aAgent` builds locally, but nothing has been deployed or called live.
 
 ## Demo repo
 `demo/vulnerable-app/` is intentionally insecure (SQLi, command injection, XSS, secrets, deserialisation, buffer

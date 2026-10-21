@@ -76,6 +76,8 @@ def clone_repo(url: str, ref: str = "", token: str = "") -> tuple[Path, str]:
     if not _GITHUB.match(url):
         raise ValueError("repo must be an https git URL (github.com / gitlab.com style) or a local path")
     dest = Path(tempfile.mkdtemp(prefix="cm_repo_"))
+    if shutil.which("git") is None:  # e.g. Agent Engine runtime has no git binary
+        return _download_tarball(url, ref, token or os.environ.get("GITHUB_TOKEN", ""), dest)
     auth_url = url
     token = token or os.environ.get("GITHUB_TOKEN", "")
     if token:
@@ -87,6 +89,28 @@ def clone_repo(url: str, ref: str = "", token: str = "") -> tuple[Path, str]:
         err = r.stderr.replace(token, "***") if token else r.stderr
         raise RuntimeError("git clone failed: " + err)
     return dest, _head(dest)
+
+
+def _download_tarball(url: str, ref: str, token: str, dest: Path) -> tuple[Path, str]:
+    import io
+    import tarfile
+    import urllib.request
+    m = re.match(r"^https://github\.com/([\w.-]+)/([\w.-]+?)(\.git)?/?$", url)
+    if not m:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise RuntimeError("git is not installed on this host; only github.com repositories can be fetched without it")
+    req = urllib.request.Request(f"https://api.github.com/repos/{m[1]}/{m[2]}/tarball/{ref}".rstrip("/"),
+                                 headers={"User-Agent": "codemender-agent", **({"Authorization": f"Bearer {token}"} if token else {})})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            data = r.read(200_000_000)
+        with tarfile.open(fileobj=io.BytesIO(data)) as tf:
+            tf.extractall(dest, filter="data")  # rejects absolute paths, traversal and unsafe links
+    except Exception as exc:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise RuntimeError(f"could not download repository: {exc}") from exc
+    top = next(dest.iterdir())
+    return top, top.name.rsplit("-", 1)[-1][:7]
 
 
 def _head(path: Path) -> str:

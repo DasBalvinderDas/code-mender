@@ -160,7 +160,7 @@ for i, (h, b) in enumerate([("Interactive HTML dashboard", "risk score, severity
 s = slide("Demo architecture: agents working together via A2A")
 nodes = [("Gemini Enterprise", "User asks:\n“Analyse and fix this repo”", THEME["dark"]),
          ("Defect-Fix Agent", "ADK · Agent Engine\nOrchestrates the fix", THEME["primary"]),
-         ("CodeMender Analysis Agent", "ADK · A2A server\nFind · Verify plan · Fix", THEME["accent"]),
+         ("CodeMender Analysis Agent", "ADK · Agent Engine (A2A)\nFind · Verify plan · Fix", THEME["accent"]),
          ("Git repository", "Cloned read-only,\nscanned, discarded", THEME["warn"])]
 for i, (h, b, c) in enumerate(nodes):
     x = Inches(0.4 + i * 3.2)
@@ -169,7 +169,7 @@ for i, (h, b, c) in enumerate(nodes):
     text(s, x, Inches(2.8), Inches(2.8), Inches(1.0), b.split("\n"), 13, False, "FFFFFF", PP_ALIGN.CENTER)
     if i < 3:
         text(s, x + Inches(2.75), Inches(2.6), Inches(0.5), Inches(0.6), "→", 28, True, THEME["mut"])
-text(s, Inches(0.4), Inches(4.3), Inches(12.5), Inches(0.5), "A2A: agent card at /.well-known/agent-card.json · JSON-RPC · IAM-authenticated on Cloud Run", 15, True, THEME["dark"])
+text(s, Inches(0.4), Inches(4.3), Inches(12.5), Inches(0.5), "A2A over Vertex AI Agent Engine · IAM-authenticated · both agents registered in Gemini Enterprise", 15, True, THEME["dark"])
 text(s, Inches(0.4), Inches(4.9), Inches(12.5), Inches(2), [
     "1. Defect-Fix agent delegates repo analysis to CodeMender over A2A.",
     "2. CodeMender returns severity, CWE/OWASP, patches and report links.",

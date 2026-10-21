@@ -18,6 +18,19 @@ _MIME = {"html": "text/html", "md": "text/markdown", "json": "application/json",
 _STATE_KEY = "codemender_last_scan"
 
 
+def _signed_url(blob) -> str:
+    """24h V4 signed URL via IAM signBlob (runtime SA needs roles/iam.serviceAccountTokenCreator on itself)."""
+    import datetime
+
+    import google.auth
+    from google.auth.transport.requests import Request
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    creds.refresh(Request())
+    return blob.generate_signed_url(version="v4", expiration=datetime.timedelta(hours=24), method="GET",
+                                    service_account_email=getattr(creds, "service_account_email", None),
+                                    access_token=creds.token)
+
+
 def _upload_gcs(paths: dict, prefix: str) -> dict:
     bucket = os.environ.get("CODEMENDER_REPORT_BUCKET")
     if not bucket:
@@ -28,7 +41,10 @@ def _upload_gcs(paths: dict, prefix: str) -> dict:
     for fmt, p in paths.items():
         blob = b.blob(f"{prefix}/{Path(p).name}")
         blob.upload_from_filename(p, content_type=_MIME[fmt])
-        urls[fmt] = f"gs://{bucket}/{blob.name}"
+        try:
+            urls[fmt] = _signed_url(blob)
+        except Exception:
+            urls[fmt] = f"gs://{bucket}/{blob.name}"  # caller needs bucket access to open it
     return urls
 
 

@@ -1,35 +1,47 @@
-"""How the existing defect-fix ADK agent calls the CodeMender analysis agent over A2A.
+"""How the defect-fix ADK agent (on Agent Engine) calls the CodeMender analysis agent (also on Agent Engine) over A2A.
 
-Add `codemender` as a sub-agent (or wrap with AgentTool) on the defect-fix agent.
-For a Cloud Run deployment with IAM auth, give the HTTP client an ID token for the service URL.
+Set CODEMENDER_RESOURCE to the CodeMender reasoning engine, e.g.
+  projects/123/locations/us-central1/reasoningEngines/456
+The defect-fix agent's runtime service account needs roles/aiplatform.user on that project.
 """
 import os
 
+import google.auth
 import google.auth.transport.requests
-import google.oauth2.id_token
 import httpx
 from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 
-CODEMENDER_URL = os.environ["CODEMENDER_URL"]  # e.g. https://codemender-agent-xxxx.run.app
+LOCATION = os.environ.get("CODEMENDER_LOCATION", "us-central1")
+RESOURCE = os.environ["CODEMENDER_RESOURCE"]
+BASE = f"https://{LOCATION}-aiplatform.googleapis.com/v1beta1/{RESOURCE}/a2a"
 
 
-def _id_token_client() -> httpx.AsyncClient:
-    token = google.oauth2.id_token.fetch_id_token(google.auth.transport.requests.Request(), CODEMENDER_URL)
-    return httpx.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=900)
+class GoogleAuth(httpx.Auth):
+    """Adds a fresh Google access token (ADC / runtime service account) to each request."""
+
+    def __init__(self):
+        self._creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+
+    def auth_flow(self, request):
+        if not self._creds.valid:
+            self._creds.refresh(google.auth.transport.requests.Request())
+        request.headers["Authorization"] = f"Bearer {self._creds.token}"
+        yield request
 
 
 codemender = RemoteA2aAgent(
     name="codemender_analysis",
-    description="Security analysis of a git repo: vulnerabilities, severity, patches, reports.",
-    agent_card=f"{CODEMENDER_URL}/.well-known/agent-card.json",
-    httpx_client=_id_token_client(),
+    description="Security analysis of a git repo: vulnerabilities (CWE/OWASP), severity, patches, report links.",
+    agent_card=f"{BASE}/v1/card",  # verify this path against your deployed engine (see README)
+    httpx_client=httpx.AsyncClient(auth=GoogleAuth(), timeout=900),
 )
 
+# Add to your existing defect-fix agent, e.g.:
 defect_fix_agent = Agent(
     name="defect_fix_agent",
     model="gemini-2.5-flash",
-    instruction="Fix defects. For security questions or before fixing, delegate repo analysis to codemender_analysis "
-                "and use the returned patches/findings as input.",
+    instruction="Fix defects. When asked about security, or before fixing a repository, delegate analysis to "
+                "codemender_analysis and use its returned findings/patches as input to your fix.",
     sub_agents=[codemender],
 )
