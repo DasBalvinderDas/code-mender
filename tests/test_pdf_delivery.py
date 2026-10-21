@@ -45,3 +45,13 @@ def test_no_pdf_when_nothing_pending():
     class Ctx:
         state = {}
     assert attach_pdf_report(Ctx()) is None
+
+
+def test_subdir_scan_and_traversal_blocked():
+    from unittest.mock import AsyncMock, MagicMock
+    root = str(Path(DEMO).parent.parent)
+    tc = MagicMock(); tc.state = {}; tc.save_artifact = AsyncMock()
+    ok = asyncio.run(analyze_repository(root, tc, subdir="demo/vulnerable-app"))
+    assert ok["status"] == "ok" and ok["summary"]["total_findings"] == 33
+    bad = asyncio.run(analyze_repository(root, tc, subdir="../../etc"))
+    assert bad["status"] == "error"

@@ -15,7 +15,7 @@ _STATE_KEY = "codemender_last_scan"
 PENDING_PDF_KEY = "codemender_pending_pdf"  # temp-file path of a PDF the agent callback attaches to the reply, then deletes
 
 
-async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str = "", use_codemender_cli: bool = False) -> dict:
+async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str = "", subdir: str = "", use_codemender_cli: bool = False) -> dict:
     """Clone a git repository and run a full security analysis (find -> verification plan -> fix suggestions).
 
     Builds one PDF report, which is attached to the reply automatically (do not try to link or upload it).
@@ -23,6 +23,7 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
     Args:
         repo_url: https git URL (e.g. https://github.com/org/repo) or a local path.
         ref: Optional branch or tag. Defaults to the default branch.
+        subdir: Optional folder inside the repo to scan (e.g. demo/vulnerable-app). Defaults to the whole repo.
         use_codemender_cli: Also run the licensed `cm` CLI (find/verify/fix) if installed on this host.
 
     Returns:
@@ -34,10 +35,13 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
         return {"status": "error", "message": str(exc)}
     is_tmp = not os.path.isdir(repo_url)
     try:
-        res: ScanResult = await asyncio.to_thread(scan_path, root, repo_url, ref, commit)
+        scan_root = (root / subdir).resolve() if subdir else root
+        if not scan_root.is_dir() or (root.resolve() not in scan_root.parents and scan_root != root.resolve()):
+            return {"status": "error", "message": f"subdir '{subdir}' not found inside the repository"}
+        res: ScanResult = await asyncio.to_thread(scan_path, scan_root, repo_url + (f"/{subdir}" if subdir else ""), ref, commit)
         cli = None
         if use_codemender_cli:
-            cli = await asyncio.to_thread(run_cm_cli, root) if cm_cli_available() else {"error": "`cm` CLI not installed on this host; built-in engine used"}
+            cli = await asyncio.to_thread(run_cm_cli, scan_root) if cm_cli_available() else {"error": "`cm` CLI not installed on this host; built-in engine used"}
     finally:
         if is_tmp:
             shutil.rmtree(root, ignore_errors=True)
