@@ -36,7 +36,7 @@ def test_clean_code_has_no_findings(tmp_path):
 def test_all_report_formats(res, tmp_path):
     import json
     paths = reports.write_all(res, tmp_path)
-    assert set(paths) == set(reports.FORMATS)
+    assert set(paths) == set(reports.FORMATS) | {"pdf"}
     assert json.loads(Path(paths["sarif"]).read_text())["version"] == "2.1.0"
     assert "CodeMender Security Report" in Path(paths["html"]).read_text()
     assert json.loads(Path(paths["json"]).read_text())["summary"]["total_findings"] == len(res.findings)

@@ -140,6 +140,11 @@ pre{{overflow:auto;background:rgba(127,127,127,.12);padding:8px;border-radius:6p
 FORMATS = {"html": to_html, "md": to_markdown, "json": to_json, "sarif": to_sarif, "csv": to_csv, "patch": to_patches}
 
 
+def to_pdf_bytes(res: ScanResult) -> bytes:
+    from .pdf_report import to_pdf
+    return to_pdf(res, summary(res))
+
+
 def write_all(res: ScanResult, out_dir: Path) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = {}
@@ -148,4 +153,6 @@ def write_all(res: ScanResult, out_dir: Path) -> dict:
         p = out_dir / name
         p.write_text(fn(res), encoding="utf-8")
         paths[ext] = str(p)
+    (out_dir / "report.pdf").write_bytes(to_pdf_bytes(res))
+    paths["pdf"] = str(out_dir / "report.pdf")
     return paths

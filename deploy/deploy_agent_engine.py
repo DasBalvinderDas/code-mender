@@ -1,6 +1,6 @@
 """Deploy the CodeMender analysis agent to Agent Engine as an A2A agent.
 
-    python deploy/deploy_agent_engine.py --project P --location us-central1 --staging-bucket gs://B [--reports-bucket B2]
+    python deploy/deploy_agent_engine.py --project P --location us-central1 --staging-bucket gs://B
     python deploy/deploy_agent_engine.py ... --update <reasoningEngine resource name>   # redeploy in place
 
 Run from the repository root.
@@ -19,9 +19,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--project", required=True)
 ap.add_argument("--location", default="us-central1")
 ap.add_argument("--staging-bucket", required=True, help="gs://bucket used to stage the package")
-ap.add_argument("--reports-bucket", default="", help="bucket for HTML/SARIF/... reports (recommended)")
 ap.add_argument("--model", default="gemini-2.5-flash")
-ap.add_argument("--service-account", default="", help="runtime service account (needs aiplatform.user + storage access)")
+ap.add_argument("--service-account", default="", help="runtime service account (needs aiplatform.user)")
 ap.add_argument("--update", default="", help="existing resource name to update instead of creating")
 a = ap.parse_args()
 
@@ -30,11 +29,11 @@ client = vertexai.Client(project=a.project, location=a.location)
 
 config = {
     "display_name": "CodeMender Analysis Agent",
-    "description": "Security code analysis for a git repo (find / verify plan / fix) with multi-format reports. A2A.",
+    "description": "Security code analysis for a git repo (find / verify plan / fix) with a PDF report. A2A.",
     "requirements_file": "requirements.txt",
     "extra_packages": ["codemender_agent"],
     "staging_bucket": a.staging_bucket,
-    "env_vars": {"CODEMENDER_MODEL": a.model, **({"CODEMENDER_REPORT_BUCKET": a.reports_bucket} if a.reports_bucket else {})},
+    "env_vars": {"CODEMENDER_MODEL": a.model},
     # Sessions/tasks are in memory, so keep one instance so follow-up questions hit the same state.
     "min_instances": 1, "max_instances": 1,
     **({"service_account": a.service_account} if a.service_account else {}),

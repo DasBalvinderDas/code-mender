@@ -21,17 +21,13 @@ need preview access, so they cannot be exercised from this repo. This agent ther
 The built-in engine is pattern-based; it does not build or run exploits. The "verification plan" per finding is a
 described, non-weaponised test, not an executed PoC. Patches are suggestions for human review.
 
-## Reports produced per scan
-| File | Use |
-|---|---|
-| `report.html` | Interactive dashboard: risk score, severity donut, OWASP exposure, filterable findings with diffs |
-| `report.md` | Executive summary for tickets/chat |
-| `report.json` | Machine-readable (summary + findings) |
-| `report.sarif` | SARIF 2.1.0 for GitHub code scanning / IDEs |
-| `report.csv` | Audit / spreadsheet evidence |
-| `patches.diff` | Unified-diff fixes for the defect-fix agent |
-
-Example output for the demo app: [`docs/sample-report/`](docs/sample-report/).
+## Report
+Each analysis produces **one PDF** (`CodeMender_Security_Report.pdf`): risk score, severity chart, OWASP Top 10
+exposure, findings overview, and per-finding detail (CWE, why it matters, fix, verification plan, proposed diff).
+It is generated in memory and attached to the agent's reply as an A2A file part, so Gemini Enterprise receives it
+directly. **Nothing is stored in a bucket**; the temp file is deleted after it is attached. The agent also summarises the findings in text,
+and can return Markdown/JSON/SARIF/CSV/patch text in chat on request (`get_report`).
+Sample: [`docs/sample-report/report.pdf`](docs/sample-report/report.pdf).
 
 ## Run locally
 ```bash
@@ -46,13 +42,11 @@ Private repos: set `GITHUB_TOKEN`. If the host has no `git` binary (Agent Engine
 ```bash
 gcloud auth application-default login
 python deploy/deploy_agent_engine.py --project <proj> --location us-central1 \
-  --staging-bucket gs://<staging-bucket> --reports-bucket gs://<reports-bucket-name>   # bucket name only for reports
+  --staging-bucket gs://<staging-bucket>   # staging is only used to upload the deployment package
 ```
 It prints the resource name, A2A endpoint and agent-card URL. Checks after deploy:
 1. `curl -H "Authorization: Bearer $(gcloud auth print-access-token)" <card URL>` returns the agent card.
-2. Reports: grant the engine's service account `roles/storage.objectAdmin` on the reports bucket and
-   `roles/iam.serviceAccountTokenCreator` on itself (for 24h signed links to the HTML dashboard). Without signing,
-   the agent returns `gs://` URIs, and the Markdown summary can always be returned in chat.
+2. Ask the agent to analyse a repo; the reply should include the PDF as an attachment (see the caveat below).
 3. Sessions and tasks are in memory, so the deploy pins `min/max_instances=1`. Raise that only after moving state
    to a persistent session service.
 
@@ -66,6 +60,9 @@ Register CodeMender via the Gemini Enterprise admin (Agents → add a custom A2A
 the registration API, as you did for the defect-fix agent. Check Google's current "register ADK and A2A agents in
 Gemini Enterprise" doc, since the steps move. If registration requires an `url` in the card that Gemini Enterprise
 can reach, use the A2A endpoint printed by the deploy script.
+**Caveat:** whether Gemini Enterprise displays a PDF file part returned by an A2A agent is not something I could
+verify. The PDF is delivered in the standard A2A format (file part, `application/pdf`); check how your Gemini Enterprise
+renders it. If it doesn't, the text summary in the reply still carries the key findings.
 Status: deployment code is written against the installed SDK (`google-cloud-aiplatform` 2.6.0, `a2a-sdk` 1.2.3) and the
 `A2aAgent` builds locally, but nothing has been deployed or called live.
 

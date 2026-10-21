@@ -145,12 +145,12 @@ card(s, Inches(0.5), Inches(4.2), Inches(12.3), Inches(2.3), "Proven direction (
 s = slide("Reports and outputs", "Everything the analysis agent produces for a repository")
 if SHOT.exists():
     s.shapes.add_picture(str(SHOT), Inches(7.3), Inches(1.5), width=Inches(5.6))
-for i, (h, b) in enumerate([("Interactive HTML dashboard", "risk score, severity donut, OWASP exposure, filterable findings"),
-                            ("Markdown executive summary", "paste into tickets / chat"),
-                            ("SARIF 2.1.0", "GitHub code scanning, IDEs, DevSecOps pipelines"),
-                            ("JSON + CSV", "dashboards, audit evidence, import to other tools"),
-                            ("Patch set (unified diff)", "reviewable fixes, hand-off to the Defect-Fix agent"),
-                            ("Per-finding detail", "CWE, OWASP, why it matters, fix, verification plan")]):
+for i, (h, b) in enumerate([("One PDF security report", "delivered straight into Gemini Enterprise, nothing stored"),
+                            ("Risk score and severity chart", "at-a-glance posture of the repository"),
+                            ("OWASP Top 10 + CWE mapping", "audit-friendly categorisation of every finding"),
+                            ("Per-finding detail", "why it matters, recommended fix, verification plan"),
+                            ("Proposed patches (diff)", "reviewable fixes, hand-off to the Defect-Fix agent"),
+                            ("Text summary in chat", "key findings even if the PDF is not rendered")]):
     y = Inches(1.5 + i * 0.9)
     box(s, Inches(0.5), y, Inches(0.12), Inches(0.75), THEME["primary"])
     text(s, Inches(0.7), y - Inches(0.05), Inches(6.4), Inches(0.4), h, 16, True, THEME["dark"])

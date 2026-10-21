@@ -28,7 +28,7 @@ def build_a2a_agent() -> A2aAgent:
     skills = [
         AgentSkill(id="analyze_repository", name="Analyse repository for vulnerabilities",
                    description="Clone a git repo, find vulnerabilities (CWE/OWASP mapped), produce fix patches and "
-                               "HTML/Markdown/JSON/SARIF/CSV reports.",
+                               "a PDF report attached to the reply.",
                    tags=["security", "code-analysis", "codemender", "sast"],
                    examples=["Analyse https://github.com/org/repo for vulnerabilities"]),
         AgentSkill(id="fix_candidates", name="Provide patches for findings",

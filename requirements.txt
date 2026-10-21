@@ -3,4 +3,4 @@ google-adk==2.12.0
 a2a-sdk[http-server]==1.2.3
 sse-starlette==3.5.0
 uvicorn==0.54.0
-google-cloud-storage>=2.16
+reportlab==5.0.1

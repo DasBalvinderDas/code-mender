@@ -8,50 +8,17 @@ import tempfile
 from pathlib import Path
 
 from google.adk.tools import ToolContext
-from google.genai import types
-
 from . import reports
 from .scanner import clone_repo, cm_cli_available, run_cm_cli, scan_path, ScanResult
 
-_MIME = {"html": "text/html", "md": "text/markdown", "json": "application/json",
-         "sarif": "application/json", "csv": "text/csv", "patch": "text/x-diff"}
 _STATE_KEY = "codemender_last_scan"
-
-
-def _signed_url(blob) -> str:
-    """24h V4 signed URL via IAM signBlob (runtime SA needs roles/iam.serviceAccountTokenCreator on itself)."""
-    import datetime
-
-    import google.auth
-    from google.auth.transport.requests import Request
-    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    creds.refresh(Request())
-    return blob.generate_signed_url(version="v4", expiration=datetime.timedelta(hours=24), method="GET",
-                                    service_account_email=getattr(creds, "service_account_email", None),
-                                    access_token=creds.token)
-
-
-def _upload_gcs(paths: dict, prefix: str) -> dict:
-    bucket = os.environ.get("CODEMENDER_REPORT_BUCKET")
-    if not bucket:
-        return {}
-    from google.cloud import storage  # optional dependency
-    b = storage.Client().bucket(bucket)
-    urls = {}
-    for fmt, p in paths.items():
-        blob = b.blob(f"{prefix}/{Path(p).name}")
-        blob.upload_from_filename(p, content_type=_MIME[fmt])
-        try:
-            urls[fmt] = _signed_url(blob)
-        except Exception:
-            urls[fmt] = f"gs://{bucket}/{blob.name}"  # caller needs bucket access to open it
-    return urls
+PENDING_PDF_KEY = "codemender_pending_pdf"  # temp-file path of a PDF the agent callback attaches to the reply, then deletes
 
 
 async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str = "", use_codemender_cli: bool = False) -> dict:
     """Clone a git repository and run a full security analysis (find -> verification plan -> fix suggestions).
 
-    Generates HTML dashboard, Markdown, JSON, SARIF, CSV and a unified-diff patch set.
+    Builds one PDF report, which is attached to the reply automatically (do not try to link or upload it).
 
     Args:
         repo_url: https git URL (e.g. https://github.com/org/repo) or a local path.
@@ -59,7 +26,7 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
         use_codemender_cli: Also run the licensed `cm` CLI (find/verify/fix) if installed on this host.
 
     Returns:
-        Summary with severity counts, risk score, top findings, and report locations.
+        Summary with severity counts, risk score, top findings and the report attachment status.
     """
     try:
         root, commit = await asyncio.to_thread(clone_repo, repo_url, ref)
@@ -75,19 +42,15 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
         if is_tmp:
             shutil.rmtree(root, ignore_errors=True)
 
-    out_dir = Path(tempfile.mkdtemp(prefix="cm_reports_"))
-    paths = reports.write_all(res, out_dir)
-    for fmt, p in paths.items():
-        try:
-            await tool_context.save_artifact(Path(p).name, types.Part.from_bytes(data=Path(p).read_bytes(), mime_type=_MIME[fmt]))
-        except Exception:
-            pass  # no artifact service configured (e.g. plain A2A server)
-    urls = await asyncio.to_thread(_upload_gcs, paths, f"{Path(repo_url.rstrip('/')).name}-{commit}")
+    fd, pdf_path = tempfile.mkstemp(prefix="cm_report_", suffix=".pdf")
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(await asyncio.to_thread(reports.to_pdf_bytes, res))
+    tool_context.state[PENDING_PDF_KEY] = pdf_path
     tool_context.state[_STATE_KEY] = {"findings": [f.to_dict() for f in res.findings], "summary": reports.summary(res)}
 
     top = [{k: f.to_dict()[k] for k in ("id", "severity", "title", "cwe", "file", "line", "owasp")} for f in res.findings[:10]]
     return {"status": "ok", "summary": reports.summary(res), "top_findings": top,
-            "report_files": sorted(Path(p).name for p in paths.values()), "report_uris": urls,
+            "report": "PDF security report is attached to this reply (CodeMender_Security_Report.pdf)",
             "codemender_cli": cli, "engine": "codemender-cli+builtin" if cli and "error" not in cli else "builtin"}
 
 
@@ -100,12 +63,12 @@ def get_finding_details(finding_id: str, tool_context: ToolContext) -> dict:
 
 
 def get_report(format: str, tool_context: ToolContext) -> dict:
-    """Return the last analysis rendered as a report. format: md | json | sarif | csv | patch | html."""
+    """Return the last analysis as text in chat. format: md | json | sarif | csv | patch (use md for a readable summary)."""
     data = tool_context.state.get(_STATE_KEY)
     if not data:
         return {"status": "error", "message": "no analysis yet; run analyze_repository first"}
-    if format not in reports.FORMATS:
-        return {"status": "error", "message": f"format must be one of {sorted(reports.FORMATS)}"}
+    if format not in reports.FORMATS or format == "html":
+        return {"status": "error", "message": f"format must be one of {sorted(set(reports.FORMATS) - {'html'})}"}
     from .scanner import Finding
     s = data["summary"]
     res = ScanResult(s["repo"], s["ref"], s["commit"], s["files_scanned"], s["lines_scanned"], s["languages"],
