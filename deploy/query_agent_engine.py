@@ -26,6 +26,14 @@ def _get(d, *names, default=None):
     return default
 
 
+def decode_b64(data) -> bytes:
+    """Decode base64 as it arrives in event JSON: standard or URL-safe alphabet, with or without padding."""
+    if not isinstance(data, str):
+        return bytes(data)
+    text = "".join(data.split()).replace("-", "+").replace("_", "/")
+    return base64.b64decode(text + "=" * (-len(text) % 4))
+
+
 def parse_event(event: dict):
     """Returns (texts, attachments) from one streamed event; attachments are (filename, bytes)."""
     texts, files = [], []
@@ -35,10 +43,12 @@ def parse_event(event: dict):
             texts.append(part["text"])
         blob = _get(part, "inline_data", "inlineData")
         if blob and _get(blob, "data"):
-            data = blob["data"]
-            raw = base64.b64decode(data) if isinstance(data, str) else bytes(data)
-            name = _get(blob, "display_name", "displayName") or f"attachment-{uuid.uuid4().hex[:6]}"
-            files.append((Path(name).name, raw))
+            name = Path(_get(blob, "display_name", "displayName") or f"attachment-{uuid.uuid4().hex[:6]}").name
+            try:
+                files.append((name, decode_b64(blob["data"])))
+            except Exception as exc:  # keep the raw text so nothing is lost, and keep going
+                print(f"\n[could not decode attachment {name}: {exc}; saving the raw data as {name}.b64]")
+                files.append((name + ".b64", str(blob["data"]).encode()))
     return texts, files
 
 

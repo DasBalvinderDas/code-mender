@@ -129,3 +129,17 @@ def test_get_remote_clear_error_when_no_api(monkeypatch):
     with pytest.raises(SystemExit) as e:
         q.get_remote("p", "us-central1", "projects/1/locations/us-central1/reasoningEngines/9")
     assert "neither" in str(e.value)
+
+
+@pytest.mark.parametrize("encode", [base64.b64encode, base64.urlsafe_b64encode,
+                                    lambda b: base64.urlsafe_b64encode(b).rstrip(b"="), lambda b: base64.b64encode(b).rstrip(b"=")])
+def test_decode_b64_accepts_standard_urlsafe_and_unpadded(encode):
+    raw = bytes(range(256)) * 3 + b"%PDF-1.4 ??>>"
+    assert q.decode_b64(encode(raw).decode()) == raw
+    assert q.decode_b64(" " + encode(raw).decode()[:10] + "\n" + encode(raw).decode()[10:]) == raw  # whitespace tolerated
+
+
+def test_undecodable_attachment_is_saved_raw_not_a_crash():
+    event = {"content": {"role": "model", "parts": [{"inlineData": {"data": "A", "displayName": "r.pdf"}}]}}
+    texts, files = q.parse_event(event)
+    assert files == [("r.pdf.b64", b"A")]
