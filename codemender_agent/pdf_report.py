@@ -138,7 +138,7 @@ def to_pdf(res: ScanResult, summary: dict) -> bytes:
               "isolated sandbox; FIXED findings have a patch that passed the configured build command. CodeMender results come from an LLM and "
               "can vary between runs. Patches must still be reviewed and tested by a person before merge." if real else
               "Findings come from a built-in rule-based scanner mapped to CWE and OWASP, not from the CodeMender product. Verification plans describe how "
-              "a finding would be confirmed; no exploit was executed. Patches are suggestions that must be reviewed and tested before merge. Test folders and test files (test, tests, spec, e2e, cypress, fixtures, *.spec.*, *.test.*) and vendored or build folders are not scanned.")
+              "a finding would be confirmed; no exploit was executed. Patches are suggestions that must be reviewed and tested before merge. Test folders and test files (test, tests, spec, e2e, cypress, fixtures, *.spec.*, *.test.*, minified files) and vendored or build folders are not scanned.")
     f += [Paragraph("Method and limits", S["h2"]), Paragraph(method, S["body"])]
     doc.build(f, onFirstPage=footer, onLaterPages=footer)
     return buf.getvalue()

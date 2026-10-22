@@ -121,7 +121,7 @@ def _head(path: Path) -> str:
     return r.stdout.strip() or "n/a"
 
 
-_TEST_FILE = re.compile(r"(\.(spec|test)\.[a-z]+$|_test\.(go|py|rb|c|cc|cpp)$|(^|/)test_[^/]*\.py$|Test\.java$|Tests\.java$)")
+_TEST_FILE = re.compile(r"(\.min\.(js|css)$|\.bundle\.js$|\.(spec|test)\.[a-z]+$|_test\.(go|py|rb|c|cc|cpp)$|(^|/)test_[^/]*\.py$|Test\.java$|Tests\.java$)")
 
 
 def _iter_files(root: Path):
@@ -170,7 +170,7 @@ def scan_path(root: Path, repo: str = "", ref: str = "", commit: str = "") -> Sc
         is_test = bool(re.search(r"(^|/)(tests?|__tests__|spec)(/|$)|\.test\.|_test\.", rel))
         for i, line in enumerate(lines):
             s = line.strip()
-            if not s or s.startswith(("#", "//", "*", "/*")) and "BEGIN" not in s:
+            if not s or len(s) > 1000 or s.startswith(("#", "//", "*", "/*")) and "BEGIN" not in s:
                 continue
             for rule in rules:
                 if rule.pattern.search(line):

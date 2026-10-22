@@ -28,10 +28,20 @@ Private repos: set `GITHUB_TOKEN`. If the host has no `git` binary, github.com r
 
 ## Deploy to Agent Engine
 ```bash
+git clone -b claude/charming-gauss-uyqs3b https://github.com/DasBalvinderDas/code-mender.git
+cd code-mender
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
 gcloud auth application-default login
-python deploy/deploy_agent_engine.py --project <proj> --location us-central1 \
-  --staging-bucket gs://<staging-bucket> --model <a Gemini model available in your project>
+gcloud services enable aiplatform.googleapis.com --project <PROJECT_ID>
+# one bucket is needed only to upload the deployment package (the reports do not use it); reuse any existing bucket
+gcloud storage buckets create gs://<STAGING_BUCKET> --project <PROJECT_ID> --location us-central1   # skip if you have one
+
+python deploy/deploy_agent_engine.py --project <PROJECT_ID> --location us-central1 \
+  --staging-bucket gs://<STAGING_BUCKET> --model gemini-2.5-flash    # use a Gemini model available in your project
 ```
+The last line prints the engine's resource name. To redeploy after changes, add `--update <that resource name>`.
 Then register it in Gemini Enterprise the way you did the defect-fix agent (ADK agent on Agent Engine).
 
 **Not verified yet (first deploy will tell):** the deploy call itself, the model name for your project, GitHub downloads from the
@@ -40,5 +50,5 @@ Markdown copy of the report (the `.md` is the fallback if the PDF does not rende
 
 ## Demo
 `demo/vulnerable-app/` is intentionally insecure (never deploy it); the scan finds 33 issues (9 Critical, 16 High, 8 Medium).
-Sample report: [`docs/sample-report/report.pdf`](docs/sample-report/report.pdf). Prompts: [`docs/DEMO_PROMPTS.md`](docs/DEMO_PROMPTS.md).
+Sample report: [`docs/sample-report/report.pdf`](docs/sample-report/report.pdf). Demo with Juice Shop: [`demo.md`](demo.md). Small demo repo prompts: [`docs/DEMO_PROMPTS.md`](docs/DEMO_PROMPTS.md).
 Test plan: [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md). Deck: `ppt/CodeMender_Overview.pptx`.
