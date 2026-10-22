@@ -36,8 +36,17 @@ pip install -r requirements.txt
 gcloud auth application-default login
 gcloud services enable aiplatform.googleapis.com --project <PROJECT_ID>
 
-python deploy/deploy_agent_engine.py --project <PROJECT_ID> --location us-central1 --model gemini-2.5-flash
+python deploy/deploy_agent_engine.py --project <PROJECT_ID> --location us-central1 --model gemini-2.5-flash \
+  --service-account <RUNTIME_SA_EMAIL>      # optional: the identity the agent runs as
 ```
+Example for the sandbox project:
+```bash
+python deploy/deploy_agent_engine.py --project gebu-demo-sandbox --location us-central1 --model gemini-2.5-flash \
+  --service-account app-svc-custom-sandbox@gebu-demo-sandbox.iam.gserviceaccount.com
+```
+The person running the deploy needs `roles/iam.serviceAccountUser` on that service account; the service account needs `roles/aiplatform.user`.
+The agent needs no other permissions: it clones public repos over HTTPS and writes nothing to GCP.
+
 Use a Gemini model that is available in your project. The last line prints the engine's resource name; to redeploy after changes add
 `--update <that resource name>`. The agent's source files are sent inline in the create request, so no bucket is involved.
 If your project rejects that mode, add `--staging-bucket gs://<bucket>` to use the classic upload (the bucket only holds the deployment package).
