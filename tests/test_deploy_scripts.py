@@ -97,3 +97,35 @@ def test_adk_deploy_dry_run_uses_config_file_and_ships_no_env(tmp_path, monkeypa
     assert "agents/codemender_agent" in c["source_packages"] and "image_spec" in c   # inline source + Dockerfile, no bucket
     assert ".env" not in captured["files"] and "requirements.txt" in captured["files"]
     assert "adk\", \"api_server" in captured["dockerfile"].replace("'", '"') or "api_server" in captured["dockerfile"]
+
+
+@pytest.mark.parametrize("attr", ["runtimes", "agent_engines"])
+def test_get_remote_uses_whichever_api_the_sdk_has(attr, monkeypatch):
+    got = {}
+
+    class Api:
+        def get(self, name):
+            got["name"] = name
+            return "REMOTE"
+
+    class Client:
+        def __init__(self, project, location):
+            setattr(self, attr, Api())
+
+    fake = types.SimpleNamespace(Client=Client)
+    monkeypatch.setitem(sys.modules, "agentplatform", fake)
+    monkeypatch.setitem(sys.modules, "vertexai", fake)
+    assert q.get_remote("p", "us-central1", "projects/1/locations/us-central1/reasoningEngines/9") == "REMOTE"
+    assert got["name"].endswith("/9")
+
+
+def test_get_remote_clear_error_when_no_api(monkeypatch):
+    class Client:
+        def __init__(self, project, location):
+            pass
+
+    monkeypatch.setitem(sys.modules, "agentplatform", types.SimpleNamespace(Client=Client))
+    monkeypatch.setitem(sys.modules, "vertexai", types.SimpleNamespace(Client=Client))
+    with pytest.raises(SystemExit) as e:
+        q.get_remote("p", "us-central1", "projects/1/locations/us-central1/reasoningEngines/9")
+    assert "neither" in str(e.value)

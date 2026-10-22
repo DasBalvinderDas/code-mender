@@ -111,7 +111,7 @@ def main():
                             "Analyse https://github.com/DasBalvinderDas/code-mender, folder demo/vulnerable-app. Reply in two lines.",
                             "--resource", resource, "--project", project])
         if r.returncode != 0:
-            sys.exit("\nDeployed, but the agent did not answer (details above). Try: python deploy/agent_engine_logs.py")
+            sys.exit("\nThe engine deployed, but the smoke test failed (details above). Try the query script yourself, and if the agent errors: python deploy/agent_engine_logs.py")
     print('\nTalk to it:  python deploy/query_agent_engine.py "Analyse https://github.com/juice-shop/juice-shop"')
 
 

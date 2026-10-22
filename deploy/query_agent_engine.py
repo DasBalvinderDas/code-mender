@@ -61,6 +61,25 @@ async def converse(remote, user_id, session_id, message, out_dir: Path):
             print(f"\n[saved attachment: {path} ({path.stat().st_size:,} bytes)]")
 
 
+def get_remote(project: str, location: str, resource: str):
+    """The deployed agent as a client object. ADK's SDK (agentplatform) exposes `runtimes`; the older vertexai SDK exposes
+    `agent_engines`. Use whichever the installed SDK has."""
+    import importlib
+    errors = []
+    for module in ("agentplatform", "vertexai"):
+        try:
+            client = importlib.import_module(module).Client(project=project, location=location)
+        except Exception as exc:  # SDK missing or not usable
+            errors.append(f"{module}: {exc}")
+            continue
+        for attr in ("runtimes", "agent_engines"):
+            api = getattr(client, attr, None)
+            if api is not None and hasattr(api, "get"):
+                return api.get(name=resource)
+        errors.append(f"{module}: client has neither `runtimes` nor `agent_engines`")
+    raise SystemExit("Could not create a client for the deployed agent:\n  " + "\n  ".join(errors))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("message", nargs="?")
@@ -72,12 +91,7 @@ def main():
     if not resource:
         sys.exit("No engine known. Deploy first, or pass --resource projects/<p>/locations/<region>/reasoningEngines/<id>")
     warnings.filterwarnings("ignore", category=FutureWarning)
-    try:
-        import agentplatform as sdk
-        sdk.Client
-    except (ImportError, AttributeError):
-        import vertexai as sdk
-    remote = sdk.Client(project=resolve_project(a.project), location=resource.split("/")[3]).agent_engines.get(name=resource)
+    remote = get_remote(resolve_project(a.project), resource.split("/")[3], resource)
 
     async def go():
         user_id = f"demo-{uuid.uuid4().hex[:6]}"
