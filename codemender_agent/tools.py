@@ -45,7 +45,7 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
 
     files = []
     for ext, mime, data in (("pdf", "application/pdf", await asyncio.to_thread(reports.to_pdf_bytes, res)),
-                            ("md", "text/markdown", reports.to_markdown(res, limit=len(res.findings) or 1).encode("utf-8"))):
+                            ("md", "text/markdown", reports.to_markdown(res, limit=100).encode("utf-8"))):
         fd, path = tempfile.mkstemp(prefix="cm_report_", suffix="." + ext)
         with os.fdopen(fd, "wb") as fh:
             fh.write(data)
@@ -77,7 +77,27 @@ def get_report(format: str, tool_context: ToolContext) -> dict:
     s = data["summary"]
     res = ScanResult(s["repo"], s["ref"], s["commit"], s["files_scanned"], s["lines_scanned"], s["languages"],
                      [Finding(**f) for f in data["findings"]], s.get("engine", ScanResult.engine))
-    return {"status": "ok", "format": format, "content": reports.FORMATS[format](res)}
+    return {"status": "ok", "format": format, "content": (reports.to_markdown(res, limit=100) if format == "md" else reports.FORMATS[format](res))}
+
+
+def search_findings(tool_context: ToolContext, path_prefix: str = "", cwe: str = "", severity: str = "", limit: int = 30) -> dict:
+    """Filter the findings of the last analysis. Use this to answer questions about a folder, a weakness type or a severity.
+
+    Args:
+        path_prefix: Only findings whose file path starts with this (e.g. "routes/" or "lib/insecurity").
+        cwe: Only this CWE, e.g. "CWE-89" (SQL injection), "CWE-95" (eval), "CWE-798" (hard-coded secret).
+        severity: CRITICAL, HIGH, MEDIUM or LOW.
+        limit: Maximum rows to return (default 30).
+    """
+    data = tool_context.state.get(_STATE_KEY)
+    if not data:
+        return {"status": "error", "message": "no analysis yet; run analyze_repository first"}
+    rows = [f for f in data["findings"]
+            if f["file"].startswith(path_prefix) and (not cwe or f["cwe"].upper() == cwe.upper())
+            and (not severity or f["severity"].upper() == severity.upper())]
+    keep = ("id", "severity", "cwe", "title", "file", "line", "snippet")
+    return {"status": "ok", "matches": len(rows), "returned": min(len(rows), max(1, limit)),
+            "findings": [{**{k: f[k] for k in keep}, "has_patch": bool(f["patch"])} for f in rows[:max(1, limit)]]}
 
 
 def get_fix_candidates(tool_context: ToolContext) -> dict:

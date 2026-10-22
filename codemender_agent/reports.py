@@ -80,9 +80,9 @@ def to_markdown(res: ScanResult, limit: int = 25) -> str:
         if x.patch:
             L += ["```diff", x.patch.strip(), "```", ""]
     if len(res.findings) > limit:
-        L.append(f"_…and {len(res.findings) - limit} more in the full report._")
+        L.append(f"_…and {len(res.findings) - limit} more findings are listed in the PDF overview table and available through the agent._")
     L += ["", "---", "_Findings come from the engine named above. Verification plans describe how a finding would be confirmed; no exploit was run. "
-          "Patches are suggestions that must be reviewed and tested before merge._"]
+          "Patches are suggestions that must be reviewed and tested before merge. Test folders and test files (test, tests, spec, e2e, cypress, fixtures, *.spec.*, *.test.*) and vendored/build folders are not scanned._"]
     return "\n".join(L)
 
 

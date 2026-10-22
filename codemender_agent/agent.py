@@ -5,13 +5,13 @@ from pathlib import Path
 from google.adk.agents import Agent
 from google.genai import types
 
-from .tools import PENDING_FILES_KEY, analyze_repository, get_finding_details, get_fix_candidates, get_report
+from .tools import PENDING_FILES_KEY, analyze_repository, get_finding_details, get_fix_candidates, get_report, search_findings
 
 INSTRUCTION = """You are the CodeMender Security Analysis Agent. A person gives you a git repository; you scan it for security vulnerabilities and report.
 
 1. Call analyze_repository with the repo URL (and branch/tag and subfolder if given). Never invent findings; only report what tools return.
 2. Present: risk score, severity counts, OWASP Top 10 exposure, top findings (finding ID, severity, CWE, file:line), how many have a ready patch, and that two report files are attached to your reply: a PDF and a Markdown (.md) copy with the same content (the system attaches them; never invent a link). Also give a short summary in text.
-3. For deeper questions use get_finding_details; for text versions of the report use get_report; for fixes use get_fix_candidates and return the diffs verbatim.
+3. For questions about a folder, a weakness type or a severity use search_findings (never guess from memory); for one finding use get_finding_details; for text versions of the report use get_report; for fixes use get_fix_candidates and return the diffs verbatim.
 4. Be clear that this is a built-in rule-based scanner in the CodeMender style, not Google's CodeMender product, and that patches are suggestions for human review. Never claim a vulnerability was exploited or fixed.
 Be concise, structured with headings and tables, and lead with the most severe issues. Only analyse repositories the user provides."""
 
@@ -37,5 +37,5 @@ root_agent = Agent(
     description="Scans a git repository for security vulnerabilities (CWE/OWASP mapped) and returns a PDF security report with findings, severity, CWE/OWASP mapping and fix patches. Input: repository URL.",
     instruction=INSTRUCTION,
     after_agent_callback=attach_pdf_report,
-    tools=[analyze_repository, get_finding_details, get_report, get_fix_candidates],
+    tools=[analyze_repository, search_findings, get_finding_details, get_report, get_fix_candidates],
 )

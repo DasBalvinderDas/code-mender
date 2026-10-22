@@ -9,7 +9,7 @@ from google.genai import types
 from vertexai.agent_engines import AdkApp
 
 from codemender_agent.agent import INSTRUCTION, attach_pdf_report
-from codemender_agent.tools import analyze_repository, get_finding_details, get_fix_candidates, get_report
+from codemender_agent.tools import analyze_repository, get_finding_details, get_fix_candidates, get_report, search_findings
 
 DEMO = str(Path(__file__).resolve().parent.parent / "demo" / "vulnerable-app")
 
@@ -30,7 +30,7 @@ def test_adkapp_returns_pdf(monkeypatch):
     vertexai.init(project="test-project", location="us-central1")
     from google.adk.sessions import InMemorySessionService
     agent = Agent(name="codemender_analysis_agent", model=Script(), instruction=INSTRUCTION, after_agent_callback=attach_pdf_report,
-                  tools=[analyze_repository, get_finding_details, get_report, get_fix_candidates])
+                  tools=[analyze_repository, get_finding_details, get_report, get_fix_candidates, search_findings])
     app = AdkApp(agent=agent, enable_tracing=False, session_service_builder=lambda: InMemorySessionService())
     app.set_up()
 

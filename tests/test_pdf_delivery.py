@@ -58,3 +58,15 @@ def test_subdir_scan_and_traversal_blocked():
     assert ok["status"] == "ok" and ok["summary"]["total_findings"] == 33
     bad = asyncio.run(analyze_repository(root, tc, subdir="../../etc"))
     assert bad["status"] == "error"
+
+
+def test_search_findings_filters():
+    from unittest.mock import AsyncMock, MagicMock
+    from codemender_agent.tools import search_findings
+    tc = MagicMock(); tc.state = {}; tc.save_artifact = AsyncMock()
+    asyncio.run(analyze_repository(DEMO, tc))
+    sqli = search_findings(tc, cwe="CWE-89")
+    assert sqli["matches"] == 2 and all(f["cwe"] == "CWE-89" for f in sqli["findings"])
+    assert {f["file"] for f in search_findings(tc, path_prefix="parser")["findings"]} == {"parser.c"}
+    assert search_findings(tc, severity="critical", limit=3)["returned"] == 3
+    assert search_findings(MagicMock(state={}))["status"] == "error"

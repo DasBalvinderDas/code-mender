@@ -13,7 +13,9 @@ from pathlib import Path
 
 from .rules import RULES, Rule
 
-SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build", "target", "vendor", ".tox"}
+SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__", "dist", "build", "target", "vendor", ".tox",
+             # test code: fake credentials and deliberate payloads would drown real findings
+             "test", "tests", "__tests__", "spec", "specs", "e2e", "cypress", "fixtures", "__mocks__"}
 MAX_FILE_BYTES = 1_000_000
 SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 SEV_WEIGHT = {"CRITICAL": 10, "HIGH": 6, "MEDIUM": 3, "LOW": 1}
@@ -119,11 +121,16 @@ def _head(path: Path) -> str:
     return r.stdout.strip() or "n/a"
 
 
+_TEST_FILE = re.compile(r"(\.(spec|test)\.[a-z]+$|_test\.(go|py|rb|c|cc|cpp)$|(^|/)test_[^/]*\.py$|Test\.java$|Tests\.java$)")
+
+
 def _iter_files(root: Path):
     for dp, dn, fn in os.walk(root):
         dn[:] = [d for d in dn if d not in SKIP_DIRS]
         for f in fn:
             p = Path(dp) / f
+            if _TEST_FILE.search(f):
+                continue
             try:
                 if p.stat().st_size <= MAX_FILE_BYTES:
                     yield p
