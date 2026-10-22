@@ -62,5 +62,5 @@ Markdown copy of the report (the `.md` is the fallback if the PDF does not rende
 
 ## Demo
 `demo/vulnerable-app/` is intentionally insecure (never deploy it); the scan finds 33 issues (9 Critical, 16 High, 8 Medium).
-Sample report: [`docs/sample-report/report.pdf`](docs/sample-report/report.pdf). How it all works (including how the real `cm` CLI would be called): [`flow.md`](flow.md). CodeMender CLI demo script: [`cli-demo.md`](cli-demo.md). Demo with Juice Shop: [`demo.md`](demo.md). Small demo repo prompts: [`docs/DEMO_PROMPTS.md`](docs/DEMO_PROMPTS.md).
+Sample report: [`docs/sample-report/report.pdf`](docs/sample-report/report.pdf). How it all works (including how the real `cm` CLI would be called): [`flow.md`](flow.md). CodeMender CLI demo script: [`cli-demo.md`](cli-demo.md). Short version, commands and why: [`basic-demo-commands.md`](basic-demo-commands.md). Demo with Juice Shop: [`demo.md`](demo.md). Small demo repo prompts: [`docs/DEMO_PROMPTS.md`](docs/DEMO_PROMPTS.md).
 Test plan: [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md). Deck: `ppt/CodeMender_Overview.pptx`.
