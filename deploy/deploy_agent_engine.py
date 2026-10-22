@@ -19,6 +19,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--project", required=True)
 ap.add_argument("--location", default="us-central1")
 ap.add_argument("--staging-bucket", required=True, help="gs://bucket used to stage the package")
+ap.add_argument("--runner-url", default="", help="Cloud Run URL of the CodeMender runner (real CodeMender). Empty = built-in scanner only")
 ap.add_argument("--model", default="gemini-2.5-flash")
 ap.add_argument("--service-account", default="", help="runtime service account (needs aiplatform.user)")
 ap.add_argument("--update", default="", help="existing resource name to update instead of creating")
@@ -33,7 +34,7 @@ config = {
     "requirements_file": "requirements.txt",
     "extra_packages": ["codemender_agent"],
     "staging_bucket": a.staging_bucket,
-    "env_vars": {"CODEMENDER_MODEL": a.model},
+    "env_vars": {"CODEMENDER_MODEL": a.model, **({"CODEMENDER_RUNNER_URL": a.runner_url} if a.runner_url else {})},
     # Sessions/tasks are in memory, so keep one instance so follow-up questions hit the same state.
     "min_instances": 1, "max_instances": 1,
     **({"service_account": a.service_account} if a.service_account else {}),

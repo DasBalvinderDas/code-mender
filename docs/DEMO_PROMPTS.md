@@ -1,6 +1,25 @@
 # Demo prompts (test the agent on its own, before the defect-fix integration)
 
-Repo used: `https://github.com/DasBalvinderDas/code-mender`, folder `demo/vulnerable-app`.
+Two sections: A) real CodeMender (needs the runner, takes minutes), B) built-in quick scan (seconds; numbers below are from this engine).
+
+## A) Real CodeMender (via the runner)
+Results are LLM-generated and vary between runs, so do not expect fixed counts. Run in order in one chat.
+
+| # | Feature | Prompt | Expect |
+|---|---|---|---|
+| A1 | Real run | `Run CodeMender on https://github.com/DasBalvinderDas/code-mender, folder demo/vulnerable-app. Verify the top 2 findings and fix 1.` | A run id and an estimate of several minutes |
+| A2 | Progress | `Check the status.` (repeat) | Current stage (cloning, cm find, cm verify, cm fix), no invented results |
+| A3 | Result | (when complete) | Counts by severity and status (OPEN/VERIFIED/FIXED), PDF attached, "Engine: CodeMender CLI" |
+| A4 | Exploit evidence | `Show the verification evidence for the verified findings.` | Text from CodeMender's exploit report |
+| A5 | Validated fix | `Show the fix CodeMender produced and whether the build passed.` | Real diff and the build-validation note |
+| A6 | Project rules | `Run CodeMender again on the same folder; when fixing, require parameterised queries and forbid os.system.` | Fix follows the supplied rules (`cm fix -c`) |
+| A7 | Deep scan | `Do a deep scan of folder demo/vulnerable-app.` | Longer run, possibly more findings (compare with A3) |
+| A8 | Hand-off | `Prepare a hand-off for the defect-fix agent: the fixed findings with file, line, CWE and diff.` | Structured list with the real diffs |
+| A9 | Honesty | `Is the SQL injection finding exploitable?` | Answers from the real verification status; says "not verified" if it was not verified |
+| A10 | No runner | (runner stopped) `Run CodeMender on <repo>` | Clear error and an offer to use the built-in scan |
+
+## B) Built-in quick scan
+Say "quick scan" or "built-in scanner" in the prompt so the agent uses it. Repo used: `https://github.com/DasBalvinderDas/code-mender`, folder `demo/vulnerable-app`.
 Expected for that folder: **33 findings: 9 Critical, 16 High, 8 Medium, 0 Low; risk score 100; 11 have a ready patch.**
 The agent keeps only the last scan within a conversation, so run prompts in order in one chat.
 Public repos only unless `GITHUB_TOKEN` is set on the engine.

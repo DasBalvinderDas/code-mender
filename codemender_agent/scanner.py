@@ -56,6 +56,7 @@ class ScanResult:
     lines_scanned: int
     languages: dict
     findings: list = field(default_factory=list)
+    engine: str = "Built-in rule engine (CodeMender-style)"
 
     @property
     def risk_score(self) -> int:
@@ -176,18 +177,3 @@ def scan_path(root: Path, repo: str = "", ref: str = "", commit: str = "") -> Sc
                         patch=_make_patch(rel, lines, i, rule)))
     findings.sort(key=lambda f: (SEV_ORDER[f.severity], f.file, f.line))
     return ScanResult(repo or str(root), ref or "default", commit or _head(root), nfiles, nlines, langs, findings)
-
-
-def cm_cli_available() -> bool:
-    return shutil.which("cm") is not None
-
-
-def run_cm_cli(root: Path, stages=("find", "verify", "fix"), timeout=3600) -> dict:
-    """Run the licensed CodeMender `cm` CLI (preview) when it is installed on the host."""
-    out = {}
-    for st in stages:
-        r = subprocess.run(["cm", st], cwd=root, capture_output=True, text=True, timeout=timeout)
-        out[st] = {"exit_code": r.returncode, "stdout": r.stdout[-6000:], "stderr": r.stderr[-2000:]}
-        if r.returncode:
-            break
-    return out

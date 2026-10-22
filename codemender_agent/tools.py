@@ -9,14 +9,14 @@ from pathlib import Path
 
 from google.adk.tools import ToolContext
 from . import reports
-from .scanner import clone_repo, cm_cli_available, run_cm_cli, scan_path, ScanResult
+from .scanner import Finding, ScanResult, clone_repo, scan_path
 
 _STATE_KEY = "codemender_last_scan"
 PENDING_PDF_KEY = "codemender_pending_pdf"  # temp-file path of a PDF the agent callback attaches to the reply, then deletes
 
 
-async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str = "", subdir: str = "", use_codemender_cli: bool = False) -> dict:
-    """Clone a git repository and run a full security analysis (find -> verification plan -> fix suggestions).
+async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str = "", subdir: str = "") -> dict:
+    """FAST built-in scan (seconds). Use run_codemender for the real CodeMender (find, exploit verification, validated fixes).
 
     Builds one PDF report, which is attached to the reply automatically (do not try to link or upload it).
 
@@ -24,7 +24,6 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
         repo_url: https git URL (e.g. https://github.com/org/repo) or a local path.
         ref: Optional branch or tag. Defaults to the default branch.
         subdir: Optional folder inside the repo to scan (e.g. demo/vulnerable-app). Defaults to the whole repo.
-        use_codemender_cli: Also run the licensed `cm` CLI (find/verify/fix) if installed on this host.
 
     Returns:
         Summary with severity counts, risk score, top findings and the report attachment status.
@@ -39,9 +38,6 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
         if not scan_root.is_dir() or (root.resolve() not in scan_root.parents and scan_root != root.resolve()):
             return {"status": "error", "message": f"subdir '{subdir}' not found inside the repository"}
         res: ScanResult = await asyncio.to_thread(scan_path, scan_root, repo_url + (f"/{subdir}" if subdir else ""), ref, commit)
-        cli = None
-        if use_codemender_cli:
-            cli = await asyncio.to_thread(run_cm_cli, scan_root) if cm_cli_available() else {"error": "`cm` CLI not installed on this host; built-in engine used"}
     finally:
         if is_tmp:
             shutil.rmtree(root, ignore_errors=True)
@@ -55,7 +51,7 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
     top = [{k: f.to_dict()[k] for k in ("id", "severity", "title", "cwe", "file", "line", "owasp")} for f in res.findings[:10]]
     return {"status": "ok", "summary": reports.summary(res), "top_findings": top,
             "report": "PDF security report is attached to this reply (CodeMender_Security_Report.pdf)",
-            "codemender_cli": cli, "engine": "codemender-cli+builtin" if cli and "error" not in cli else "builtin"}
+            "engine": res.engine}
 
 
 def get_finding_details(finding_id: str, tool_context: ToolContext) -> dict:
@@ -73,10 +69,9 @@ def get_report(format: str, tool_context: ToolContext) -> dict:
         return {"status": "error", "message": "no analysis yet; run analyze_repository first"}
     if format not in reports.FORMATS or format == "html":
         return {"status": "error", "message": f"format must be one of {sorted(set(reports.FORMATS) - {'html'})}"}
-    from .scanner import Finding
     s = data["summary"]
     res = ScanResult(s["repo"], s["ref"], s["commit"], s["files_scanned"], s["lines_scanned"], s["languages"],
-                     [Finding(**f) for f in data["findings"]])
+                     [Finding(**f) for f in data["findings"]], s.get("engine", ScanResult.engine))
     return {"status": "ok", "format": format, "content": reports.FORMATS[format](res)}
 
 

@@ -1,74 +1,85 @@
 # CodeMender Analysis Agent
 
-An ADK agent that analyses a git repository for security vulnerabilities and returns CodeMender-style
-results (Find → Verification plan → Fix) plus a full report pack. It is served over **A2A** so the existing
-defect-fix agent can call it.
+An ADK agent that runs **Google CodeMender** (`cm` CLI: find, exploit verification, validated fixes) on a GitHub repo and
+returns a **PDF report**. It is served over **A2A on Agent Engine** so the existing defect-fix agent can call it, and it
+is registered in Gemini Enterprise.
 
 ```
-Gemini Enterprise → Defect-Fix agent (Agent Engine) ──A2A──▶ CodeMender Analysis agent (Agent Engine)
-                                                                   │ clone → scan → reports (HTML/MD/JSON/SARIF/CSV/diff)
+Gemini Enterprise ─▶ Defect-Fix agent (Agent Engine) ──A2A──▶ CodeMender agent (Agent Engine)
+                                                                  │ HTTPS + ID token
+                                                                  ▼
+                                             CodeMender runner (Cloud Run, sandbox, `cm` CLI) ──▶ Vertex AI
+                                                 clone → cm find → cm verify → cm fix → findings JSON
+                                                                  │
+                          PDF built in the agent and attached to the reply (nothing stored in a bucket)
 ```
 
-## Important: what runs where
-Google's CodeMender (`cm find | verify | fix | report`) is a **preview product**; its hosted agent and `cm` CLI
-need preview access, so they cannot be exercised from this repo. This agent therefore ships:
+## Two engines (always labelled in the report)
+| | Real CodeMender | Built-in quick scan |
+|---|---|---|
+| Tools | `run_codemender`, `check_codemender_run` | `analyze_repository` |
+| Engine | Google CodeMender CLI via the runner | Rule-based scanner in this repo (not CodeMender) |
+| Speed | Minutes (find 1-10, verify ~3 each, fix ~5-7 each) | Seconds |
+| Verification | A real exploit is built and run in the sandbox (VERIFIED) | Describes a test plan only |
+| Fixes | Patch validated by your build command (FIXED) | Mechanical suggestions for some rules |
+| Results | LLM-based, can vary between runs | Deterministic |
 
-* a **built-in analysis engine** (`codemender_agent/rules.py`, 24 rules across Python, JS/TS, Java, Go, C/C++,
-  Ruby, Rust, IaC; mapped to CWE and OWASP Top 10 2021) that works today and produces the demo reports, and
-* a **`cm` CLI hook** (`analyze_repository(..., use_codemender_cli=True)`): if `cm` is installed on the host
-  it runs `cm find`, `cm verify`, `cm fix` and returns their output alongside the built-in results.
+The agent uses real CodeMender by default when `CODEMENDER_RUNNER_URL` is set, and the built-in scan otherwise or on request.
 
-The built-in engine is pattern-based; it does not build or run exploits. The "verification plan" per finding is a
-described, non-weaponised test, not an executed PoC. Patches are suggestions for human review.
+## Why a separate runner
+`cm verify` builds and **runs exploit scripts on the machine where `cm` runs** (the lab's example reads `/etc/passwd`), and
+`cm verify`/`cm fix` reset the scan directory with `git checkout HEAD -- . && git clean -fd`. That must not happen in the
+agent's own runtime. The runner (`runner/`) is a Cloud Run service where each job gets:
+a fresh clone, its own `CM_HOME` (so `cm report` never shows other jobs' findings), the `cm` sandbox left **on**, no
+GitHub tokens in the `cm` environment, and a dedicated service account with only `roles/aiplatform.user`.
+Source code is sent to Google's CodeMender backend (`aiplatform.googleapis.com`) as part of `cm find`; confirm that is
+acceptable for each repo you scan.
 
-## Report
-Each analysis produces **one PDF** (`CodeMender_Security_Report.pdf`): risk score, severity chart, OWASP Top 10
-exposure, findings overview, and per-finding detail (CWE, why it matters, fix, verification plan, proposed diff).
-It is generated in memory and attached to the agent's reply as an A2A file part, so Gemini Enterprise receives it
-directly. **Nothing is stored in a bucket**; the temp file is deleted after it is attached. The agent also summarises the findings in text,
-and can return Markdown/JSON/SARIF/CSV/patch text in chat on request (`get_report`).
-Sample: [`docs/sample-report/report.pdf`](docs/sample-report/report.pdf).
+## What the runner does per request (`POST /v1/analyses`)
+1. Clone the GitHub repo (shallow), choose the scan folder (`subdir`).
+2. `cm init`, then set `vcs.type: git`, `build.command` (Python repos default to `python3 -m compileall -q .`; other
+   languages default to a no-op because the image has no toolchains, so set `build_command` for them), and turn the
+   interactive confirmations off.
+3. `cm find <dir> [--deep] -y --bypass-warning`, then read `cm report --format json`.
+4. `cm verify <id>` for the top `verify_top` open findings (default 2); collect `.exploit/REPORT.md` and `PLAN.md`.
+5. `cm fix <id> [-c context]` for the top `fix_top` verified findings (default 1); capture `git diff`, reset the tree.
+6. Return findings with status OPEN / VERIFIED / FIXED, evidence and diffs. Poll with `GET /v1/analyses/{id}`.
 
-## Run locally
+## PDF report
+One PDF (`CodeMender_Security_Report.pdf`): engine used, risk score, severity chart, OWASP exposure, findings overview with
+status, and per-finding detail (CWE, analysis, verification evidence, proposed diff). It is built in memory in the agent
+and attached to the reply as an A2A file part. Sample: [`docs/sample-report/report.pdf`](docs/sample-report/report.pdf)
+(built-in engine). Whether Gemini Enterprise renders the file part is not verified; the text summary always carries the key findings.
+
+## Deploy
+```bash
+# 1. Get the cm binary (needs your CodeMender access)
+gcloud artifacts generic download --project=cmoc-prod --location=us --repository=codemender-cli-production \
+  --package=cm --version=stable --name=cm-linux-amd64.zip --destination=runner/
+# 2. Runner on Cloud Run (IAM-protected; AGENT_SA = the CodeMender agent's runtime service account)
+PROJECT=<proj> REGION=us-central1 AGENT_SA=<agent-sa-email> ./deploy/deploy_runner.sh
+# 3. Agent on Agent Engine (A2A)
+python deploy/deploy_agent_engine.py --project <proj> --location us-central1 \
+  --staging-bucket gs://<staging-bucket> --runner-url <runner URL> [--service-account <agent-sa-email>]
+```
+Then connect the defect-fix agent with [`deploy/defect_fix_client_example.py`](deploy/defect_fix_client_example.py)
+(`RemoteA2aAgent`; its service account needs `roles/aiplatform.user`) and register the agent in Gemini Enterprise as you did the defect-fix agent.
+
+**Needs your confirmation (could not be verified from here):**
+* The service account that `cm` uses on Cloud Run (the runner SA) must be allowed to use CodeMender/Vertex AI in your project; the lab does not show the auth step, so I assumed Application Default Credentials.
+* The `cm` binary's exact flags beyond those in the lab (`-y --bypass-warning`, `-c`, `--deep`, `--format json`). The runner retries `cm` without `-y --bypass-warning` if the CLI rejects them.
+* The agent-card URL on Agent Engine and Gemini Enterprise's rendering of the PDF (see below in the test plan).
+* Timeouts: a real run takes many minutes, so the agent starts a run and the user (or the defect-fix agent) checks back with `check_codemender_run`. The runner keeps results in memory for 1 hour and runs as one instance.
+
+## Local development
 ```bash
 pip install -r requirements-dev.txt
-pytest
-export GOOGLE_GENAI_USE_VERTEXAI=true GOOGLE_CLOUD_PROJECT=<proj> GOOGLE_CLOUD_LOCATION=us-central1
-adk web .        # chat UI; ask: "analyse demo/vulnerable-app"
+pytest          # 17+ tests; the runner tests use tests/fake_cm.py, a SIMULATOR of the cm CLI, not CodeMender itself
+adk web .       # agent chat UI (needs Vertex credentials)
 ```
-Private repos: set `GITHUB_TOKEN`. If the host has no `git` binary (Agent Engine), github.com repos are fetched as a tarball.
-
-## Deploy to Agent Engine (A2A)
-```bash
-gcloud auth application-default login
-python deploy/deploy_agent_engine.py --project <proj> --location us-central1 \
-  --staging-bucket gs://<staging-bucket>   # staging is only used to upload the deployment package
-```
-It prints the resource name, A2A endpoint and agent-card URL. Checks after deploy:
-1. `curl -H "Authorization: Bearer $(gcloud auth print-access-token)" <card URL>` returns the agent card.
-2. Ask the agent to analyse a repo; the reply should include the PDF as an attachment (see the caveat below).
-3. Sessions and tasks are in memory, so the deploy pins `min/max_instances=1`. Raise that only after moving state
-   to a persistent session service.
-
-## Connect the defect-fix agent
-Add the CodeMender agent as a `RemoteA2aAgent` in the defect-fix agent
-([`deploy/defect_fix_client_example.py`](deploy/defect_fix_client_example.py)), redeploy it, and give its runtime
-service account `roles/aiplatform.user`.
-
-## Gemini Enterprise
-Register CodeMender via the Gemini Enterprise admin (Agents → add a custom A2A agent, pasting the agent card JSON) or
-the registration API, as you did for the defect-fix agent. Check Google's current "register ADK and A2A agents in
-Gemini Enterprise" doc, since the steps move. If registration requires an `url` in the card that Gemini Enterprise
-can reach, use the A2A endpoint printed by the deploy script.
-**Caveat:** whether Gemini Enterprise displays a PDF file part returned by an A2A agent is not something I could
-verify. The PDF is delivered in the standard A2A format (file part, `application/pdf`); check how your Gemini Enterprise
-renders it. If it doesn't, the text summary in the reply still carries the key findings.
-Status: deployment code is written against the installed SDK (`google-cloud-aiplatform` 2.6.0, `a2a-sdk` 1.2.3) and the
-`A2aAgent` builds locally, but nothing has been deployed or called live.
+`tests/fake_cm.py` reproduces the codelab's documented command shapes so the orchestration can be tested offline.
+It cannot tell you whether the real `cm` behaves identically; run Stage 6 of the test plan against the real CLI.
 
 ## Demo repo
-`demo/vulnerable-app/` is intentionally insecure (SQLi, command injection, XSS, secrets, deserialisation, buffer
-overflow, privileged pod…). Never deploy it.
-
-## Deck
-`ppt/CodeMender_Overview.pptx` (rebuild with `python ppt/build_deck.py`; restyle via `THEME`/`TEMPLATE`).
+`demo/vulnerable-app/` is intentionally insecure. Never deploy it.
+Prompts: [`docs/DEMO_PROMPTS.md`](docs/DEMO_PROMPTS.md). Test plan: [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md). Deck: `ppt/CodeMender_Overview.pptx`.

@@ -22,7 +22,7 @@ def _now():
 def summary(res: ScanResult) -> dict:
     f = res.findings
     return {
-        "repo": res.repo, "ref": res.ref, "commit": res.commit, "files_scanned": res.files_scanned,
+        "repo": res.repo, "engine": res.engine, "ref": res.ref, "commit": res.commit, "files_scanned": res.files_scanned,
         "lines_scanned": res.lines_scanned, "total_findings": len(f), "by_severity": res.by_severity,
         "risk_score": res.risk_score, "auto_fixable": sum(1 for x in f if x.patch),
         "top_cwes": Counter(x.cwe for x in f).most_common(5),

@@ -81,7 +81,7 @@ def to_pdf(res: ScanResult, summary: dict) -> bytes:
     # Title band
     band = Table([[Paragraph('<font color="white" size="22"><b>CodeMender Security Report</b></font>', S["band"])],
                   [Paragraph(f'<font color="#BBD3F7" size="9">{escape(res.repo)} @ {escape(res.commit)} · '
-                             f'{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}</font>', S["cell"])]], colWidths=[W])
+                             f'{datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC} · Engine: {escape(res.engine)}</font>', S["cell"])]], colWidths=[W])
     band.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), NAVY), ("LEFTPADDING", (0, 0), (-1, -1), 10),
                               ("TOPPADDING", (0, 0), (0, 0), 12), ("BOTTOMPADDING", (0, -1), (-1, -1), 10)]))
     f += [band, Spacer(1, 8)]
@@ -106,11 +106,11 @@ def to_pdf(res: ScanResult, summary: dict) -> bytes:
 
     # Findings overview
     f += [Paragraph("Findings overview", S["h2"])]
-    rows = [[_p(h, S["cell"]) for h in ("Sev", "ID", "Issue", "CWE", "Location", "Patch")]]
+    rows = [[_p(h, S["cell"]) for h in ("Sev", "ID", "Issue", "CWE", "Location", "Status")]]
     for x in res.findings:
         rows.append([_p(x.severity.title(), S["cell"]), _p(x.id, S["cell"]), _p(x.title, S["cell"]), _p(x.cwe, S["cell"]),
-                     _p(f"{x.file}:{x.line}", S["cell"]), _p("yes" if x.patch else "-", S["cell"])])
-    t = Table(rows, colWidths=[15 * mm, 25 * mm, W - 125 * mm, 17 * mm, 48 * mm, 14 * mm], repeatRows=1)
+                     _p(f"{x.file}:{x.line}", S["cell"]), _p(x.status.upper() if x.status != "detected" else ("patch" if x.patch else "-"), S["cell"])])
+    t = Table(rows, colWidths=[15 * mm, 25 * mm, W - 125 * mm, 17 * mm, 44 * mm, 18 * mm], repeatRows=1)
     st = [("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F0FE")), ("GRID", (0, 0), (-1, -1), .25, colors.lightgrey),
           ("VALIGN", (0, 0), (-1, -1), "TOP")]
     for i, x in enumerate(res.findings, 1):
@@ -120,12 +120,12 @@ def to_pdf(res: ScanResult, summary: dict) -> bytes:
 
     for x in res.findings[:MAX_DETAILED]:
         blk = [Paragraph(f'<font color="{SEV[x.severity].hexval()}"><b>[{x.severity}]</b></font> {escape(x.title)} '
-                         f'<font size="8" color="#5F6368">· {x.cwe} · {escape(x.owasp)}</font>', S["h2"]),
+                         f'<font size="8" color="#5F6368">· {x.cwe} {("· " + escape(x.owasp)) if x.owasp else ""}{(" · " + x.status) if x.status != "detected" else ""}</font>', S["h2"]),
                Paragraph(f"<b>{escape(x.file)}:{x.line}</b> · {x.id} · confidence {x.confidence}", S["small"]),
                Preformatted(x.snippet[:160], S["code"]),
                Paragraph(f"<b>Why it matters:</b> {escape(x.description)}", S["body"]),
                Paragraph(f"<b>Recommended fix:</b> {escape(x.remediation)}", S["body"]),
-               Paragraph(f"<b>Verification plan:</b> {escape(x.verification_plan)}", S["body"])]
+               Paragraph(f"<b>{'Verification' if x.status != 'detected' else 'Verification plan'}:</b> {escape(x.verification_plan)}", S["body"])]
         if x.patch:
             diff = "\n".join(l[:110] for l in x.patch.strip().splitlines()[:24])
             blk += [Paragraph("<b>Proposed patch (for human review):</b>", S["body"]), Preformatted(diff, S["code"])]
@@ -133,9 +133,12 @@ def to_pdf(res: ScanResult, summary: dict) -> bytes:
     if len(res.findings) > MAX_DETAILED:
         f.append(Paragraph(f"{len(res.findings) - MAX_DETAILED} lower-severity findings are listed in the overview only.", S["small"]))
 
-    f += [Paragraph("Method and limits", S["h2"]),
-          Paragraph("Findings come from rule-based static analysis mapped to CWE and OWASP. Verification plans describe how a finding "
-                    "would be confirmed in a sandbox; no exploit was executed. Patches are suggestions that must be reviewed and tested "
-                    "before merge.", S["body"])]
+    real = res.engine.startswith("CodeMender CLI")
+    method = ("Findings were produced by the CodeMender CLI (find). Findings marked VERIFIED had a proof-of-concept exploit built and run in an "
+              "isolated sandbox; FIXED findings have a patch that passed the configured build command. CodeMender results come from an LLM and "
+              "can vary between runs. Patches must still be reviewed and tested by a person before merge." if real else
+              "Findings come from a built-in rule-based scanner mapped to CWE and OWASP, not from the CodeMender product. Verification plans describe how "
+              "a finding would be confirmed; no exploit was executed. Patches are suggestions that must be reviewed and tested before merge.")
+    f += [Paragraph("Method and limits", S["h2"]), Paragraph(method, S["body"])]
     doc.build(f, onFirstPage=footer, onLaterPages=footer)
     return buf.getvalue()
