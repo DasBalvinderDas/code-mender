@@ -36,7 +36,10 @@ def test_pdf_is_attached_to_reply():
                                                   new_message=types.Content(role="user", parts=[types.Part(text="scan")]))]
 
     pdfs = [p.inline_data for e in asyncio.run(go()) if e.content for p in e.content.parts if p.inline_data]
-    assert len(pdfs) == 1
+    assert len(pdfs) == 2
+    md = next(b for b in pdfs if b.mime_type == "text/markdown")
+    assert b"# CodeMender Security Analysis" in md.data and md.display_name.endswith(".md")
+    pdfs = [b for b in pdfs if b.mime_type == "application/pdf"]
     assert pdfs[0].mime_type == "application/pdf" and pdfs[0].data.startswith(b"%PDF")
     assert pdfs[0].display_name == "CodeMender_Security_Report.pdf"
 

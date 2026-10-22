@@ -66,7 +66,7 @@ def to_patches(res: ScanResult) -> str:
 def to_markdown(res: ScanResult, limit: int = 25) -> str:
     s = summary(res)
     sev = s["by_severity"]
-    L = [f"# CodeMender Security Analysis", f"**Repo:** {res.repo} @ `{res.commit}`  |  **Generated:** {_now()}", "",
+    L = [f"# CodeMender Security Analysis", f"**Repo:** {res.repo} @ `{res.commit}`  |  **Generated:** {_now()}", f"**Engine:** {res.engine}", "",
          f"**Risk score:** {s['risk_score']}/100 | **Findings:** {s['total_findings']} | **Auto-fixable:** {s['auto_fixable']} | "
          f"**Files/Lines scanned:** {s['files_scanned']}/{s['lines_scanned']}", "",
          "| Critical | High | Medium | Low |", "|---|---|---|---|",
@@ -81,6 +81,8 @@ def to_markdown(res: ScanResult, limit: int = 25) -> str:
             L += ["```diff", x.patch.strip(), "```", ""]
     if len(res.findings) > limit:
         L.append(f"_…and {len(res.findings) - limit} more in the full report._")
+    L += ["", "---", "_Findings come from the engine named above. Verification plans describe how a finding would be confirmed; no exploit was run. "
+          "Patches are suggestions that must be reviewed and tested before merge._"]
     return "\n".join(L)
 
 

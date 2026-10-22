@@ -41,3 +41,4 @@ def test_adkapp_returns_pdf(monkeypatch):
     blob = str(events)
     assert "Scan complete." in blob
     assert "CodeMender_Security_Report.pdf" in blob and "application/pdf" in blob
+    assert "CodeMender_Security_Report.md" in blob and "text/markdown" in blob

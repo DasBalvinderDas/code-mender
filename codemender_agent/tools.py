@@ -12,13 +12,14 @@ from . import reports
 from .scanner import Finding, ScanResult, clone_repo, scan_path
 
 _STATE_KEY = "codemender_last_scan"
-PENDING_PDF_KEY = "codemender_pending_pdf"  # temp-file path of a PDF the agent callback attaches to the reply, then deletes
+PENDING_FILES_KEY = "codemender_pending_files"  # report files (PDF + Markdown) the agent callback attaches to the reply, then deletes
+REPORT_NAME = "CodeMender_Security_Report"
 
 
 async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str = "", subdir: str = "") -> dict:
     """FAST built-in scan (seconds). Use run_codemender for the real CodeMender (find, exploit verification, validated fixes).
 
-    Builds one PDF report, which is attached to the reply automatically (do not try to link or upload it).
+    Builds a PDF report and a Markdown report, both attached to the reply automatically (do not try to link or upload them).
 
     Args:
         repo_url: https git URL (e.g. https://github.com/org/repo) or a local path.
@@ -42,15 +43,19 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
         if is_tmp:
             shutil.rmtree(root, ignore_errors=True)
 
-    fd, pdf_path = tempfile.mkstemp(prefix="cm_report_", suffix=".pdf")
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(await asyncio.to_thread(reports.to_pdf_bytes, res))
-    tool_context.state[PENDING_PDF_KEY] = pdf_path
+    files = []
+    for ext, mime, data in (("pdf", "application/pdf", await asyncio.to_thread(reports.to_pdf_bytes, res)),
+                            ("md", "text/markdown", reports.to_markdown(res, limit=len(res.findings) or 1).encode("utf-8"))):
+        fd, path = tempfile.mkstemp(prefix="cm_report_", suffix="." + ext)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        files.append({"path": path, "name": f"{REPORT_NAME}.{ext}", "mime": mime})
+    tool_context.state[PENDING_FILES_KEY] = files
     tool_context.state[_STATE_KEY] = {"findings": [f.to_dict() for f in res.findings], "summary": reports.summary(res)}
 
     top = [{k: f.to_dict()[k] for k in ("id", "severity", "title", "cwe", "file", "line", "owasp")} for f in res.findings[:10]]
     return {"status": "ok", "summary": reports.summary(res), "top_findings": top,
-            "report": "PDF security report is attached to this reply (CodeMender_Security_Report.pdf)",
+            "report": "Two files are attached to this reply: CodeMender_Security_Report.pdf and CodeMender_Security_Report.md (same content)",
             "engine": res.engine}
 
 

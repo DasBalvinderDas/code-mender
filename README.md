@@ -1,11 +1,11 @@
 # CodeMender Scan Agent
 
 A simple ADK agent. You give it a GitHub repo; it scans the code for security vulnerabilities and answers with a summary
-and a **PDF report** (risk score, severity chart, OWASP/CWE mapping, every finding with why it matters, the fix, and a
+and a **PDF report plus a Markdown copy** (risk score, severity chart, OWASP/CWE mapping, every finding with why it matters, the fix, and a
 suggested patch where one is mechanical).
 
 ```
-User (Gemini Enterprise) → CodeMender Scan Agent (Agent Engine) → clones repo → scans → PDF + summary in the reply
+User (Gemini Enterprise) → CodeMender Scan Agent (Agent Engine) → clones repo → scans → PDF + Markdown + summary in the reply
 ```
 
 **What it is:** a built-in, rule-based scanner (24 rules; Python, JS/TS, Java, Go, C/C++, Ruby, Rust, Kubernetes/Terraform
@@ -35,8 +35,8 @@ python deploy/deploy_agent_engine.py --project <proj> --location us-central1 \
 Then register it in Gemini Enterprise the way you did the defect-fix agent (ADK agent on Agent Engine).
 
 **Not verified yet (first deploy will tell):** the deploy call itself, the model name for your project, GitHub downloads from the
-Agent Engine runtime, and whether Gemini Enterprise displays the PDF attachment. The text summary in the reply always
-carries the key findings, so the answer is useful even if the PDF is not rendered.
+Agent Engine runtime, and whether Gemini Enterprise displays the file attachments. Every reply carries both a PDF and a
+Markdown copy of the report (the `.md` is the fallback if the PDF does not render), plus a short text summary.
 
 ## Demo
 `demo/vulnerable-app/` is intentionally insecure (never deploy it); the scan finds 33 issues (9 Critical, 16 High, 8 Medium).

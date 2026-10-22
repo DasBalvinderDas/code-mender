@@ -5,7 +5,7 @@ Run in order in one chat (the agent remembers only the last scan). Public repos 
 
 | # | Feature | Prompt | Expect |
 |---|---|---|---|
-| 1 | Scan + PDF | `Analyse https://github.com/DasBalvinderDas/code-mender, folder demo/vulnerable-app, for security vulnerabilities.` | Counts above, top findings with IDs, OWASP exposure, PDF attached |
+| 1 | Scan + PDF | `Analyse https://github.com/DasBalvinderDas/code-mender, folder demo/vulnerable-app, for security vulnerabilities.` | Counts above, top findings with IDs, OWASP exposure, PDF and Markdown files attached |
 | 2 | Executive summary | `Give me a 5-line executive summary for a CISO of that scan.` | Numbers match #1 |
 | 3 | OWASP mapping | `Which OWASP Top 10 categories are affected and how many findings in each?` | A03 Injection 10, A07 6, A02 4, A05 4, A08 3, A01 3, A06 2, A10 1 |
 | 4 | Drill-down | `Show full details for the first critical finding, including the finding ID.` | CWE, file:line, why, fix |

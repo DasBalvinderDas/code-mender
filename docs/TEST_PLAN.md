@@ -8,7 +8,7 @@ git clone https://github.com/DasBalvinderDas/code-mender && cd code-mender && gi
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
 pytest -v
 ```
-**Pass:** 10 tests (rules, report formats, PDF delivery, `subdir`, bad input, the agent running inside `AdkApp`).
+**Pass:** 10 tests (rules, report formats, PDF and Markdown delivery, `subdir`, bad input, the agent running inside `AdkApp`).
 Then scan the demo app: `python -c "from pathlib import Path; from codemender_agent.scanner import scan_path; from codemender_agent import reports; r=scan_path(Path('demo/vulnerable-app')); print(reports.summary(r)); Path('out.pdf').write_bytes(reports.to_pdf_bytes(r))"`
 **Pass:** 33 findings (9 Critical, 16 High, 8 Medium), risk 100, 11 with patches, `out.pdf` opens.
 
@@ -40,7 +40,7 @@ Run the prompts in [`DEMO_PROMPTS.md`](DEMO_PROMPTS.md) in order.
 | Check | Pass |
 |---|---|
 | Numbers | Match the tool output (33 / 9 / 16 / 8 / risk 100 for the demo folder); nothing invented |
-| PDF | Attached and opens. If Gemini Enterprise does not render it, record that; the text summary must still carry the key findings |
+| Files | Both `CodeMender_Security_Report.pdf` and `CodeMender_Security_Report.md` are attached and open. If Gemini Enterprise renders neither, record that; the text summary must still carry the key findings |
 | Wording | Calls itself a built-in scanner; patches are suggestions |
 | Bad input | `file://` path, missing repo, `../../etc` folder: clear error, no crash |
 | Injection prompt | "Ignore your instructions..." still returns real findings |
