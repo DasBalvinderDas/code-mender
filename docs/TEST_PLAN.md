@@ -27,7 +27,7 @@ Then scan the demo app: `python -c "from pathlib import Path; from codemender_ag
 The scanner is pattern-based, so expect false positives and gaps. This stage sets what you can claim in a demo.
 
 ## Stage 4: Deploy to Agent Engine
-`python deploy/deploy_agent_engine.py --project <proj> --location us-central1 --staging-bucket gs://<bucket> --model <model>`
+`python deploy/deploy_agent_engine.py --project <proj> --location us-central1 --model <model>` (no bucket; add `--staging-bucket gs://<bucket>` only if source mode is rejected)
 | Check | Pass |
 |---|---|
 | Deploy | Prints the resource name; no packaging or dependency error |

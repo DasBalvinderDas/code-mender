@@ -26,7 +26,7 @@ adk web .                                      # chat UI, ask: "analyse demo/vul
 ```
 Private repos: set `GITHUB_TOKEN`. If the host has no `git` binary, github.com repos are downloaded as a tarball.
 
-## Deploy to Agent Engine
+## Deploy to Agent Engine (no bucket)
 ```bash
 git clone -b claude/charming-gauss-uyqs3b https://github.com/DasBalvinderDas/code-mender.git
 cd code-mender
@@ -35,17 +35,17 @@ pip install -r requirements.txt
 
 gcloud auth application-default login
 gcloud services enable aiplatform.googleapis.com --project <PROJECT_ID>
-# one bucket is needed only to upload the deployment package (the reports do not use it); reuse any existing bucket
-gcloud storage buckets create gs://<STAGING_BUCKET> --project <PROJECT_ID> --location us-central1   # skip if you have one
 
-python deploy/deploy_agent_engine.py --project <PROJECT_ID> --location us-central1 \
-  --staging-bucket gs://<STAGING_BUCKET> --model gemini-2.5-flash    # use a Gemini model available in your project
+python deploy/deploy_agent_engine.py --project <PROJECT_ID> --location us-central1 --model gemini-2.5-flash
 ```
-The last line prints the engine's resource name. To redeploy after changes, add `--update <that resource name>`.
+Use a Gemini model that is available in your project. The last line prints the engine's resource name; to redeploy after changes add
+`--update <that resource name>`. The agent's source files are sent inline in the create request, so no bucket is involved.
+If your project rejects that mode, add `--staging-bucket gs://<bucket>` to use the classic upload (the bucket only holds the deployment package).
+
 Then register it in Gemini Enterprise the way you did the defect-fix agent (ADK agent on Agent Engine).
 
 **Not verified yet (first deploy will tell):** the deploy call itself, the model name for your project, GitHub downloads from the
-Agent Engine runtime, and whether Gemini Enterprise displays the file attachments. Every reply carries both a PDF and a
+Agent Engine runtime, whether the bucket-free source deploy is accepted in your project, and whether Gemini Enterprise displays the file attachments. Every reply carries both a PDF and a
 Markdown copy of the report (the `.md` is the fallback if the PDF does not render), plus a short text summary.
 
 ## Demo
