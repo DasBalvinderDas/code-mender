@@ -27,10 +27,10 @@ Then scan the demo app: `python -c "from pathlib import Path; from codemender_ag
 The scanner is pattern-based, so expect false positives and gaps. This stage sets what you can claim in a demo.
 
 ## Stage 4: Deploy to Agent Engine
-`python deploy/deploy_agent_engine.py --project <proj> --location us-central1 --model <model>` (no bucket; add `--staging-bucket gs://<bucket>` only if source mode is rejected)
+`./deploy/deploy.sh` (reads `codemender_agent/.env`; no bucket)
 | Check | Pass |
 |---|---|
-| Deploy | Prints the resource name; no packaging or dependency error |
+| Deploy | Prints the console link and engine ID; the engine reaches a running state (if it fails, open the `logs_url` from the error or read the engine's logs and send me the first error) |
 | Model | The agent answers a plain "hello" (if not, pass a different `--model`) |
 | GitHub fetch | A public repo scan works although the runtime may have no `git` (tarball fallback) |
 | Registration | Appears in Gemini Enterprise like the defect-fix agent |

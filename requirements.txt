@@ -1,6 +1,4 @@
-# Used by the deploy script (vertexai SDK) and by Agent Engine at runtime (AdkApp wrapper). Pinned to the tested version.
-google-cloud-aiplatform[agent_engines,adk]==2.6.0
-# The agent imports google.adk and google.genai directly; pinned so the runtime matches what was tested.
+# Local use and deploying (provides the `adk` command and the Agent Platform client; the deployed agent installs its own copy)
 google-adk==2.12.0
-# PDF report generation.
+# PDF report generation (also listed in codemender_agent/requirements.txt, which is what the deployed agent installs)
 reportlab==5.0.1

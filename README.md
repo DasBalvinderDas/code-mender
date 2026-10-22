@@ -26,7 +26,7 @@ adk web .                                      # chat UI, ask: "analyse demo/vul
 ```
 Private repos: set `GITHUB_TOKEN`. If the host has no `git` binary, github.com repos are downloaded as a tarball.
 
-## Deploy to Agent Engine (no bucket)
+## Deploy to Agent Engine (ADK's own command, no bucket)
 ```bash
 git clone -b claude/charming-gauss-uyqs3b https://github.com/DasBalvinderDas/code-mender.git
 cd code-mender
@@ -34,27 +34,23 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 gcloud auth application-default login
-gcloud services enable aiplatform.googleapis.com --project <PROJECT_ID>
+gcloud services enable aiplatform.googleapis.com --project gebu-demo-sandbox
 
-python deploy/deploy_agent_engine.py --project <PROJECT_ID> --location us-central1 --model gemini-2.5-flash \
-  --service-account <RUNTIME_SA_EMAIL>      # optional: the identity the agent runs as
+cp codemender_agent/.env.example codemender_agent/.env      # edit if needed (project, region, service account, model)
+./deploy/deploy.sh
 ```
-Example for the sandbox project:
-```bash
-python deploy/deploy_agent_engine.py --project gebu-demo-sandbox --location us-central1 --model gemini-2.5-flash \
-  --service-account app-svc-custom-sandbox@gebu-demo-sandbox.iam.gserviceaccount.com
-```
-The person running the deploy needs `roles/iam.serviceAccountUser` on that service account; the service account needs `roles/aiplatform.user`.
-The agent needs no other permissions: it clones public repos over HTTPS and writes nothing to GCP.
+`deploy.sh` runs `adk deploy agent_engine`, which builds a Dockerfile (Python 3.11, installs ADK and `codemender_agent/requirements.txt`)
+and sends the agent source inline, so there is no bucket. `codemender_agent/.env` (git-ignored) holds the settings:
+`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` and `GOOGLE_CLOUD_SERVICE_ACCOUNT` configure the deployment itself, and every other
+variable (here `CODEMENDER_MODEL`) is passed to the running agent. Use a Gemini model that is available in your project.
+The service account is the identity the agent runs as: it needs `roles/aiplatform.user`, and whoever deploys needs `roles/iam.serviceAccountUser` on it.
+The agent needs nothing else: it clones public repos over HTTPS and writes nothing to GCP.
 
-Use a Gemini model that is available in your project. The last line prints the engine's resource name; to redeploy after changes add
-`--update <that resource name>`. The agent's source files are sent inline in the create request, so no bucket is involved.
-If your project rejects that mode, add `--staging-bucket gs://<bucket>` to use the classic upload (the bucket only holds the deployment package).
-
-Then register it in Gemini Enterprise the way you did the defect-fix agent (ADK agent on Agent Engine).
+To update an existing engine: `./deploy/deploy.sh <ENGINE_ID>` (the number at the end of the resource name the first deploy prints).
+The container started by `adk api_server` also serves A2A (`--a2a` is on by default in ADK's deployment), which may help later.
 
 **Not verified yet (first deploy will tell):** the deploy call itself, the model name for your project, GitHub downloads from the
-Agent Engine runtime, whether the bucket-free source deploy is accepted in your project, and whether Gemini Enterprise displays the file attachments. Every reply carries both a PDF and a
+Agent Engine runtime, the first successful start of the engine (a first attempt with a hand-built request failed to start; this version uses ADK's own deploy command), and whether Gemini Enterprise displays the file attachments. Every reply carries both a PDF and a
 Markdown copy of the report (the `.md` is the fallback if the PDF does not render), plus a short text summary.
 
 ## Demo
