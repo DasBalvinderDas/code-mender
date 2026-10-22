@@ -28,7 +28,7 @@ Private repos: set `GITHUB_TOKEN`. If the host has no `git` binary, github.com r
 
 ## Deploy to Agent Engine (ADK's own command, no bucket)
 ```bash
-git clone -b claude/charming-gauss-uyqs3b https://github.com/DasBalvinderDas/code-mender.git
+git clone https://github.com/DasBalvinderDas/code-mender.git
 cd code-mender
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt

@@ -4,7 +4,7 @@ Run in order. Stages 1-3 need no cloud access. Prompts for Stage 5 are in [`DEMO
 
 ## Stage 1: Local tests
 ```bash
-git clone https://github.com/DasBalvinderDas/code-mender && cd code-mender && git checkout claude/charming-gauss-uyqs3b
+git clone https://github.com/DasBalvinderDas/code-mender && cd code-mender
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
 pytest -v
 ```

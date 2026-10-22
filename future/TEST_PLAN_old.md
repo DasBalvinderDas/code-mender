@@ -6,7 +6,6 @@ Record pass/fail and any error text per stage.
 ## Stage 1: Unit and engine tests (local, no cloud)
 ```bash
 git clone https://github.com/DasBalvinderDas/code-mender && cd code-mender
-git checkout claude/charming-gauss-uyqs3b
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 pytest -v
