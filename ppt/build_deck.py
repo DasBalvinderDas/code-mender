@@ -160,8 +160,8 @@ for i, (h, b) in enumerate([("One PDF security report", "delivered straight into
 s = slide("Demo architecture: agents working together via A2A")
 nodes = [("Gemini Enterprise", "User asks:\n“Analyse and fix this repo”", THEME["dark"]),
          ("Defect-Fix Agent", "ADK · Agent Engine\nOrchestrates the fix", THEME["primary"]),
-         ("CodeMender Analysis Agent", "ADK · Agent Engine (A2A)\nFind · Verify plan · Fix", THEME["accent"]),
-         ("Git repository", "Cloned read-only,\nscanned, discarded", THEME["warn"])]
+         ("CodeMender Analysis Agent", "ADK · Agent Engine (A2A)\nOrchestrates + builds PDF", THEME["accent"]),
+         ("CodeMender Runner", "Cloud Run sandbox · cm CLI\nfind · verify · fix", THEME["warn"])]
 for i, (h, b, c) in enumerate(nodes):
     x = Inches(0.4 + i * 3.2)
     box(s, x, Inches(2.0), Inches(2.8), Inches(1.9), c, shape=MSO_SHAPE.ROUNDED_RECTANGLE)
