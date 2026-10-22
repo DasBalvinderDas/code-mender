@@ -157,11 +157,11 @@ for i, (h, b) in enumerate([("One PDF security report", "delivered straight into
     text(s, Inches(0.7), y + Inches(0.3), Inches(6.4), Inches(0.4), b, 13, False, THEME["mut"])
 
 # 7 Architecture of the demo
-s = slide("Demo architecture: agents working together via A2A")
-nodes = [("Gemini Enterprise", "User asks:\n“Analyse and fix this repo”", THEME["dark"]),
-         ("Defect-Fix Agent", "ADK · Agent Engine\nOrchestrates the fix", THEME["primary"]),
-         ("CodeMender Analysis Agent", "ADK · Agent Engine (A2A)\nOrchestrates + builds PDF", THEME["accent"]),
-         ("CodeMender Runner", "Cloud Run sandbox · cm CLI\nfind · verify · fix", THEME["warn"])]
+s = slide("Demo architecture", "A simple agent: repo in, security report out")
+nodes = [("Gemini Enterprise", "User pastes a\nGitHub repo link", THEME["dark"]),
+         ("CodeMender Scan Agent", "ADK · Agent Engine\nOrchestrates the scan", THEME["primary"]),
+         ("Repository", "Cloned read-only,\nscanned, discarded", THEME["warn"]),
+         ("PDF report", "Risk score, findings,\nCWE/OWASP, patches", THEME["accent"])]
 for i, (h, b, c) in enumerate(nodes):
     x = Inches(0.4 + i * 3.2)
     box(s, x, Inches(2.0), Inches(2.8), Inches(1.9), c, shape=MSO_SHAPE.ROUNDED_RECTANGLE)
@@ -169,11 +169,9 @@ for i, (h, b, c) in enumerate(nodes):
     text(s, x, Inches(2.8), Inches(2.8), Inches(1.0), b.split("\n"), 13, False, "FFFFFF", PP_ALIGN.CENTER)
     if i < 3:
         text(s, x + Inches(2.75), Inches(2.6), Inches(0.5), Inches(0.6), "→", 28, True, THEME["mut"])
-text(s, Inches(0.4), Inches(4.3), Inches(12.5), Inches(0.5), "A2A over Vertex AI Agent Engine · IAM-authenticated · both agents registered in Gemini Enterprise", 15, True, THEME["dark"])
-text(s, Inches(0.4), Inches(4.9), Inches(12.5), Inches(2), [
-    "1. Defect-Fix agent delegates repo analysis to CodeMender over A2A.",
-    "2. CodeMender returns severity, CWE/OWASP, patches and report links.",
-    "3. Defect-Fix agent applies approved fixes and re-runs analysis to confirm."], 16)
+text(s, Inches(0.4), Inches(4.3), Inches(12.5), Inches(2.6), [
+    "Today: a built-in, CodeMender-style scanner (24 rules, CWE/OWASP mapped) with a PDF report.",
+    "Next: call it from the Defect-Fix agent, and connect the real CodeMender CLI (exploit verification, validated fixes)."], 16)
 
 # 8 Demo results
 d = DATA
