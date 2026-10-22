@@ -6,7 +6,7 @@
   python deploy/deploy_agent_engine.py --dry-run   # show the command and settings, deploy nothing
 
 Settings come from the repository-root .env (copy .env.example): GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION,
-AGENT_SERVICE_ACCOUNT, CODEMENDER_MODEL. After deploying it saves AGENT_ENGINE_RESOURCE in .env and asks the agent a
+AGENT_SERVICE_ACCOUNT, CODEMENDER_MODEL, CODEMENDER_RUNNER_URL (optional). After deploying it saves AGENT_ENGINE_RESOURCE in .env and asks the agent a
 test question; if the engine does not start, it prints the engine's logs.
 """
 import argparse
@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import RESOURCE_RE, ROOT, explain, read_env, resolve_project, write_env  # noqa: E402
 
 AGENT_DIR = ROOT / "codemender_agent"
-RUNTIME_KEYS = ["CODEMENDER_MODEL"]
+RUNTIME_KEYS = ["CODEMENDER_MODEL", "CODEMENDER_RUNNER_URL"]
 
 
 def pick_update_id(args, env: dict):
@@ -79,6 +79,7 @@ def main():
     print(f"Project: {project}   Region: {region}")
     print(f"Runs as: {config.get('service_account', 'the Agent Engine service agent (default)')}")
     print(f"Model:   {config['env_vars'].get('CODEMENDER_MODEL', '(agent default)')}")
+    print(f"Engine:  {'real CodeMender via the runner ' + config['env_vars']['CODEMENDER_RUNNER_URL'] if config['env_vars'].get('CODEMENDER_RUNNER_URL') else 'built-in quick scan only (no CODEMENDER_RUNNER_URL set)'}")
     print(f"{'Updating engine ' + update_id if update_id else 'Creating a new engine'}")
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(config, f, indent=2)

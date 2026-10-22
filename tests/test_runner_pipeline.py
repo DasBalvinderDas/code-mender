@@ -25,6 +25,7 @@ def repo(tmp_path):
 def fake(monkeypatch):
     monkeypatch.setattr(pipeline, "CM_BIN", FAKE)
     monkeypatch.setattr(pipeline, "ALLOW_LOCAL", True)
+    monkeypatch.setenv("RUNNER_ALLOW_VERIFY_FIX", "1")  # most tests exercise the full flow; the gate has its own test
 
 
 def params(repo, **kw):
@@ -67,3 +68,17 @@ def test_rejects_bad_requests(bad):
 def test_missing_subdir_fails_cleanly(repo):
     with pytest.raises(pipeline.JobError):
         pipeline.execute(params(repo, subdir="nope"))
+
+
+def test_verify_and_fix_are_off_unless_the_operator_enables_them(repo, monkeypatch):
+    monkeypatch.delenv("RUNNER_ALLOW_VERIFY_FIX")
+    p = params(repo, verify_top=2, fix_top=1)
+    assert p["verify_top"] == 0 and p["fix_top"] == 0 and p["verify_fix_requested"]
+    res = pipeline.execute(p)
+    assert {f["status"] for f in res["findings"]} == {"OPEN"} and res["findings"]
+    assert any("disabled on this runner" in e for e in res["errors"])
+
+
+def test_find_only_is_the_default(repo, monkeypatch):
+    p = params(repo)
+    assert p["verify_top"] == 0 and p["fix_top"] == 0 and not p["verify_fix_requested"]

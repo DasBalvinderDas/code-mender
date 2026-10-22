@@ -9,6 +9,10 @@ The agent clones the repo itself; you only give it the URL.
 
 > Looking for the CodeMender **CLI** demo (find, verify, fix and the documents it generates)? See [`cli-demo.md`](cli-demo.md).
 
+> **Which engine answers?** With the CodeMender runner deployed, the agent uses the real CodeMender and the first answer says the scan is running (a few minutes); ask
+> `Check the status.` until it completes. Without a runner it uses the built-in quick scan (seconds). Say "quick scan" in a prompt to force the built-in one.
+> The numbers in the table below come from the built-in scan on Juice Shop; real CodeMender results are LLM-generated and will differ.
+
 ## Before you start
 * The agent is deployed to Agent Engine and registered in Gemini Enterprise (see the README).
 * Run the prompts **in order, in one chat** (the agent remembers only the last scan).

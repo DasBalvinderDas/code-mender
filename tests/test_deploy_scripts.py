@@ -143,3 +143,29 @@ def test_undecodable_attachment_is_saved_raw_not_a_crash():
     event = {"content": {"role": "model", "parts": [{"inlineData": {"data": "A", "displayName": "r.pdf"}}]}}
     texts, files = q.parse_event(event)
     assert files == [("r.pdf.b64", b"A")]
+
+
+def test_runner_url_reaches_the_agent_only_when_set():
+    assert "CODEMENDER_RUNNER_URL" not in dep.build_config(ENV)["env_vars"]
+    c = dep.build_config({**ENV, "CODEMENDER_RUNNER_URL": "https://runner.example"})
+    assert c["env_vars"]["CODEMENDER_RUNNER_URL"] == "https://runner.example"
+
+
+def test_check_runner_against_the_real_runner_app(tmp_path, monkeypatch):
+    """check_runner.run() talking to runner.app (ASGI) with the cm simulator."""
+    import subprocess
+
+    import check_runner
+    from runner import app as runner_app, pipeline
+    r = tmp_path / "src"; (r / "app").mkdir(parents=True)
+    (r / "app" / "svc.py").write_text("def get(name, cur):\n    cur.execute(f\"SELECT * FROM users WHERE name = '{name}'\")\n")
+    for c in (["init", "-q"], ["add", "-A"], ["-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "b"]):
+        subprocess.run(["git", *c], cwd=r, check=True)
+    monkeypatch.setattr(pipeline, "CM_BIN", str(ROOT / "tests" / "fake_cm.py"))
+    monkeypatch.setattr(pipeline, "ALLOW_LOCAL", True)
+    lines = []
+    from starlette.testclient import TestClient
+    with TestClient(runner_app.app, base_url="http://runner") as client:
+        code = check_runner.run(client, "http://runner", {}, {"repo_url": str(r), "subdir": "app"}, wait=60, poll=0.5, out=lines.append)
+    text = "\n".join(lines)
+    assert code == 0 and "healthz: 200" in text and "Findings: 1" in text and "CWE-89" in text and "CodeMender CLI" in text

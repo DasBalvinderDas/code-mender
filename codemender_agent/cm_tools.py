@@ -2,15 +2,13 @@
 from __future__ import annotations
 
 import asyncio
-import os
-import tempfile
 
 from google.adk.tools import ToolContext
 
 from . import reports, runner_client
 from .rules import RULES
 from .scanner import SEV_ORDER, Finding, ScanResult
-from .tools import PENDING_PDF_KEY, _STATE_KEY
+from .tools import _STATE_KEY, stage_reports
 
 RUN_KEY = "codemender_run_id"
 _OWASP = {r.cwe: r.owasp for r in RULES} | {"CWE-22": "A01:2021 Broken Access Control"}
@@ -42,10 +40,10 @@ def to_scan_result(run: dict) -> ScanResult:
 
 
 async def run_codemender(repo_url: str, tool_context: ToolContext, ref: str = "", subdir: str = "", deep: bool = False,
-                         verify_top: int = 2, fix_top: int = 1, install_deps: bool = False, context: str = "") -> dict:
+                         verify_top: int = 0, fix_top: int = 0, install_deps: bool = False, context: str = "") -> dict:
     """Start a REAL CodeMender run on a GitHub repo: cm find, then exploit verification and validated fixes for the top findings.
 
-    This takes many minutes (find ~1-10, each verify ~3, each fix ~5-7). It returns a run_id immediately;
+    This takes minutes (find ~1-10; verify and fix, when enabled, add ~3 and ~5-7 per finding). It returns a run_id immediately;
     then call check_codemender_run to follow progress and get the PDF report.
 
     Args:
@@ -53,8 +51,8 @@ async def run_codemender(repo_url: str, tool_context: ToolContext, ref: str = ""
         ref: Optional branch or tag.
         subdir: Optional folder inside the repo to scan.
         deep: Use `cm find --deep` for an exhaustive file-by-file scan (slower).
-        verify_top: How many of the most severe findings to verify with a real exploit (0-10, default 2).
-        fix_top: How many verified findings to fix and validate (0-5, default 1).
+        verify_top: Findings to verify with a real exploit (default 0). Leave at 0: verify is off unless the operator enabled it.
+        fix_top: Verified findings to fix and validate (default 0). Leave at 0 for now.
         install_deps: Install the repo's Python requirements before verification (runs repo install code; off by default).
         context: Optional project rules (like CONTEXT.md) passed to `cm fix -c` so patches follow team conventions.
     """
@@ -68,7 +66,7 @@ async def run_codemender(repo_url: str, tool_context: ToolContext, ref: str = ""
         return {"status": "error", "message": str(exc)}
     tool_context.state[RUN_KEY] = job["id"]
     return {"status": "started", "run_id": job["id"],
-            "note": "CodeMender is running in an isolated sandbox. Expect roughly 5-10 minutes for a small repo. "
+            "note": "CodeMender find is running in an isolated sandbox. Expect a few minutes for a small repo. "
                     "Call check_codemender_run to follow progress."}
 
 
@@ -97,10 +95,7 @@ async def check_codemender_run(tool_context: ToolContext, run_id: str = "", wait
         return {"status": run["status"], "stage": run.get("stage"), "progress": run.get("progress", [])[-5:],
                 "note": "Still running. Tell the user the current stage and offer to check again shortly."}
     res = to_scan_result(run)
-    fd, pdf_path = tempfile.mkstemp(prefix="cm_report_", suffix=".pdf")
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(await asyncio.to_thread(reports.to_pdf_bytes, res))
-    tool_context.state[PENDING_PDF_KEY] = pdf_path
+    await stage_reports(res, tool_context)
     tool_context.state[_STATE_KEY] = {"findings": [f.to_dict() for f in res.findings], "summary": reports.summary(res)}
     by_status = {}
     for f in res.findings:
@@ -109,4 +104,4 @@ async def check_codemender_run(tool_context: ToolContext, run_id: str = "", wait
             "has_patch": bool(f.patch)} for f in res.findings[:12]]
     return {"status": "completed", "engine": ENGINE, "summary": reports.summary(res), "by_status": by_status, "findings": top,
             "run_errors": run["result"].get("errors", []), "build_command": run["result"].get("build_command"),
-            "report": "PDF report is attached to this reply (CodeMender_Security_Report.pdf)"}
+            "report": "Two files are attached to this reply: CodeMender_Security_Report.pdf and CodeMender_Security_Report.md (same content)"}

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -33,6 +34,11 @@ class JobError(Exception):
     pass
 
 
+def verify_fix_enabled() -> bool:
+    """`cm verify` runs exploit code and `cm fix` rewrites code, so they stay off unless the operator turns them on."""
+    return os.environ.get("RUNNER_ALLOW_VERIFY_FIX") == "1"
+
+
 def _run(cmd, cwd, env, timeout):
     try:
         r = subprocess.run(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
@@ -54,7 +60,9 @@ def validate_request(p: dict) -> dict:
         raise ValueError("invalid ref")
     return {
         "repo_url": repo, "ref": ref, "subdir": subdir, "deep": bool(p.get("deep", False)),
-        "verify_top": max(0, min(int(p.get("verify_top", 2)), 10)), "fix_top": max(0, min(int(p.get("fix_top", 1)), 5)),
+        "verify_top": max(0, min(int(p.get("verify_top", 0)), 10)) if verify_fix_enabled() else 0,
+        "fix_top": max(0, min(int(p.get("fix_top", 0)), 5)) if verify_fix_enabled() else 0,
+        "verify_fix_requested": bool(int(p.get("verify_top", 0) or 0) or int(p.get("fix_top", 0) or 0)),
         "install_deps": bool(p.get("install_deps", False)), "context": str(p.get("context", ""))[:8000],
         "build_command": str(p.get("build_command", ""))[:300],
     }
@@ -167,6 +175,8 @@ def execute(params: dict, log=lambda m: None) -> dict:
         if repo_dir.resolve() not in [scan_dir, *scan_dir.parents] or not scan_dir.is_dir():
             raise JobError(f"subdir '{params['subdir']}' not found in repository")
         result.update(repo=params["repo_url"], ref=params["ref"] or "default", commit=sha, subdir=params["subdir"])
+        if params["verify_fix_requested"] and not verify_fix_enabled():
+            result["errors"].append("verify and fix are disabled on this runner (RUNNER_ALLOW_VERIFY_FIX is not set to 1); only find and report ran")
         result["files_scanned"], result["lines_scanned"] = _count_source(scan_dir)
 
         extra_path = ""
@@ -185,7 +195,8 @@ def execute(params: dict, log=lambda m: None) -> dict:
         _configure(cm_home, env, build_cmd, scan_dir)
 
         log("cm find (this can take several minutes)")
-        rc, out = _cm(["find", str(scan_dir)] + (["--deep"] if params["deep"] else []), scan_dir, env, "find", log=log)
+        extra = shlex.split(os.environ.get("CM_FIND_EXTRA_ARGS", ""))  # optional, for example a sandbox flag if the host needs it
+        rc, out = _cm(["find", str(scan_dir)] + (["--deep"] if params["deep"] else []) + extra, scan_dir, env, "find", log=log)
         if rc:
             result["errors"].append(f"cm find exited {rc}: {out[-300:]}")
         findings = _report(scan_dir, env)

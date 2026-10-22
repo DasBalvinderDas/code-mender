@@ -1,9 +1,9 @@
 # How CodeMender and this agent work (flow)
 
 **Short version:** CodeMender is a command-line tool (`cm`) that runs on a machine you control. An agent on Agent Engine cannot run a
-CLI itself, and `cm` runs exploit code, so it must not run inside the agent anyway. **Today this agent does not call `cm`:** it uses
-its own built-in scanner. Calling the real `cm` is designed and built, tested only against a simulator, and parked in [`future/`](future/README.md).
-This file explains both, so you can see exactly what is real today and what comes next.
+CLI itself, and `cm` runs exploit code, so it must not run inside the agent anyway. **The agent therefore calls a sandboxed runner that
+runs `cm` (section 3).** The runner and the agent's tools for it are built and tested against a **simulator** of `cm`, not yet against the real CLI. If no runner is
+configured, the agent falls back to its own built-in scanner and says so. This file explains both engines, what is verified and what is not.
 
 ---
 
@@ -46,7 +46,7 @@ developer / CI machine                                         Google
 
 ---
 
-## 2. What our agent does today (no `cm` involved)
+## 2. The built-in quick scan (no `cm` involved; the fallback)
 The deployed agent is a plain ADK agent. Its job: take a repo, scan it, report.
 
 ```
@@ -76,7 +76,7 @@ Follow-up questions use tools over the saved findings:
 
 ---
 
-## 3. How the agent can call the real CodeMender (`cm`) (parked in `future/`)
+## 3. How the agent calls the real CodeMender (`cm`)
 **The problem.** `cm` is a native binary with a writable disk, git, the repo's dependencies and a place to run exploits. Agent Engine runs your Python code;
 it is not a place to install an arbitrary CLI, and `cm verify` must not execute exploit scripts next to the agent's credentials.
 So the agent never runs `cm`. It calls a **runner**: a small HTTP service in a sandbox where `cm` is installed.
@@ -106,22 +106,22 @@ Gemini Enterprise ─▶ CodeMender agent (Agent Engine)
 
 * **Why asynchronous.** One find, verify and fix takes roughly 10 minutes, longer than a chat turn should block. The agent starts a run, the user (or the defect-fix agent)
   asks again, and the agent returns the current stage until it completes.
-* **Safety measures built in.** One clone and one `CM_HOME` per job; the `cm` sandbox left on; no GitHub tokens passed into the `cm` environment; the runner
-  service account limited to Vertex AI; request validation (https GitHub URLs only, no `..` in paths, safe ref names); one instance, results kept in memory for an hour.
+* **Scope today: find and report only.** The runner ignores verify and fix requests unless `RUNNER_ALLOW_VERIFY_FIX=1` is set on it, and the agent never asks for them by default. That is deliberate: `cm verify` runs exploit code on the runner.
+* **Safety measures built in.** One clone and one `CM_HOME` per job; the `cm` sandbox left on; no GitHub tokens passed into the `cm` environment; request validation (https GitHub URLs only, no `..` in paths, safe ref names); IAM-only access to the runner; one instance, results kept in memory for an hour. **Be aware:** the runner runs as the service account in `.env` (the one with CodeMender access), which in your project has broad access. With find-only that is acceptable; before enabling verify and fix, give the runner a dedicated service account with only the roles `cm` needs (`RUNNER_SA` in `deploy/deploy_runner.sh`).
 * **Both engines.** The agent keeps the built-in scan for quick results and as a fallback when the runner is not configured; the report always says which engine produced it.
-* **What is tested.** The orchestration passes tests against `future/tests/fake_cm.py`, a **simulator** written from the codelab. Nothing here has run against the real `cm`.
+* **What is tested.** The orchestration passes tests against `tests/fake_cm.py`, a **simulator** written from the codelab. Nothing here has run against the real `cm`.
   Unconfirmed: how `cm` authenticates with a service account (assumed Application Default Credentials), flags beyond those in the codelab,
   the exact output of your build of `cm`, exit codes, and whether Gemini Enterprise and A2A tolerate runs of many minutes.
 
 ## 4. Where this connects to the defect-fix agent (later)
 The planned chain: user → Gemini Enterprise → defect-fix agent → (A2A) → CodeMender agent → runner → `cm`. The scan agent returns findings with IDs, file and line, CWE,
-status and diffs (`get_fix_candidates`); the defect-fix agent applies approved fixes. The A2A packaging is also parked in `future/`.
+status and diffs (`get_fix_candidates`); the defect-fix agent applies approved fixes. The A2A packaging is parked in `future/`.
 
 ## 5. Quick reference
 | Question | Answer |
 |---|---|
-| Does the deployed agent call the real CodeMender today? | No. It uses its built-in scanner and says so in every report. |
+| Does the agent call the real CodeMender? | Yes, through the runner, when `CODEMENDER_RUNNER_URL` is set: `cm find` and `cm report` today (verify and fix are built but switched off). Otherwise it uses its built-in scanner and every report says which engine ran. |
 | Can an Agent Engine agent run `cm` directly? | Not safely. It needs a sandboxed runner, as in section 3. |
 | Does the PDF/Markdown use a bucket? | No. Both are generated in memory and attached to the reply. |
 | Where does source code go? | Built-in scan: stays in the agent's runtime and is discarded. Real `cm`: uploaded to Google's CodeMender backend during `cm find`. |
-| Which code is where? | Today: `codemender_agent/` (agent, scanner, rules, reports, PDF). Parked: `future/runner/`, `future/codemender_agent/cm_tools.py`, `future/codemender_agent/runner_client.py`. |
+| Which code is where? | Agent: `codemender_agent/` (agent, `cm_tools.py`, `runner_client.py`, built-in scanner, rules, reports, PDF). Runner: `runner/` (Cloud Run service wrapping `cm`). Deploy: `deploy/`. Parked: `future/` (A2A). |

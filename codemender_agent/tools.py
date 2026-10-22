@@ -16,6 +16,18 @@ PENDING_FILES_KEY = "codemender_pending_files"  # report files (PDF + Markdown) 
 REPORT_NAME = "CodeMender_Security_Report"
 
 
+async def stage_reports(res: ScanResult, tool_context: ToolContext) -> None:
+    """Build the PDF and Markdown reports in temp files; the agent callback attaches them to the reply, then deletes them."""
+    files = []
+    for ext, mime, data in (("pdf", "application/pdf", await asyncio.to_thread(reports.to_pdf_bytes, res)),
+                            ("md", "text/markdown", reports.to_markdown(res, limit=100).encode("utf-8"))):
+        fd, path = tempfile.mkstemp(prefix="cm_report_", suffix="." + ext)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        files.append({"path": path, "name": f"{REPORT_NAME}.{ext}", "mime": mime})
+    tool_context.state[PENDING_FILES_KEY] = files
+
+
 async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str = "", subdir: str = "") -> dict:
     """FAST built-in scan (seconds). Use run_codemender for the real CodeMender (find, exploit verification, validated fixes).
 
@@ -43,14 +55,7 @@ async def analyze_repository(repo_url: str, tool_context: ToolContext, ref: str 
         if is_tmp:
             shutil.rmtree(root, ignore_errors=True)
 
-    files = []
-    for ext, mime, data in (("pdf", "application/pdf", await asyncio.to_thread(reports.to_pdf_bytes, res)),
-                            ("md", "text/markdown", reports.to_markdown(res, limit=100).encode("utf-8"))):
-        fd, path = tempfile.mkstemp(prefix="cm_report_", suffix="." + ext)
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
-        files.append({"path": path, "name": f"{REPORT_NAME}.{ext}", "mime": mime})
-    tool_context.state[PENDING_FILES_KEY] = files
+    await stage_reports(res, tool_context)
     tool_context.state[_STATE_KEY] = {"findings": [f.to_dict() for f in res.findings], "summary": reports.summary(res)}
 
     top = [{k: f.to_dict()[k] for k in ("id", "severity", "title", "cwe", "file", "line", "owasp")} for f in res.findings[:10]]

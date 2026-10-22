@@ -26,6 +26,21 @@ Then scan the demo app: `python -c "from pathlib import Path; from codemender_ag
 3. Confirm `node_modules`, `vendor` and build folders are skipped; findings in `tests/` are low confidence.
 The scanner is pattern-based, so expect false positives and gaps. This stage sets what you can claim in a demo.
 
+## Stage 3b: The CodeMender runner (real `cm`)
+This is the stage that proves the integration. Do it before relying on the agent for real CodeMender results.
+1. By hand on a throwaway machine: follow the first sections of `cli-demo.md` (install `cm`, `cm init`, `cm find`, `cm report --format json`). Note how `cm` authenticated and send me the real JSON.
+2. `./deploy/deploy_runner.sh`, then `python deploy/check_runner.py`.
+
+| Check | Pass |
+|---|---|
+| Runner health | `healthz: 200`; a request without a token gets 401/403 |
+| Find | The run reaches `completed` with real findings (severity, CWE, file, line) and `Engine: CodeMender CLI (cm)` |
+| Auth | `cm find` reaches the backend from Cloud Run as the service account (if not: send me the error text) |
+| Sandbox | `cm`'s sandbox works inside Cloud Run; if it fails, `CM_FIND_EXTRA_ARGS` can pass the flag to turn it off (not recommended) |
+| Variability | Two runs on the same folder: note how much the findings differ |
+| Isolation | Two runs at once do not mix findings; no leftover `/tmp/cmjob_*` |
+| Verify/fix off | Asking for verify or fix returns the note that they are disabled |
+
 ## Stage 4: Deploy to Agent Engine
 `cp .env.example .env`, then `python deploy/deploy_agent_engine.py` (no bucket; it runs a smoke test and prints the logs if the engine does not start)
 | Check | Pass |
