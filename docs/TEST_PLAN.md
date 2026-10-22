@@ -27,15 +27,16 @@ Then scan the demo app: `python -c "from pathlib import Path; from codemender_ag
 The scanner is pattern-based, so expect false positives and gaps. This stage sets what you can claim in a demo.
 
 ## Stage 4: Deploy to Agent Engine
-`./deploy/deploy.sh` (reads `codemender_agent/.env`; no bucket)
+`cp .env.example .env`, then `python deploy/deploy_agent_engine.py` (no bucket; it runs a smoke test and prints the logs if the engine does not start)
 | Check | Pass |
 |---|---|
-| Deploy | Prints the console link and engine ID; the engine reaches a running state (if it fails, open the `logs_url` from the error or read the engine's logs and send me the first error) |
+| Deploy | Prints the console link and engine ID; the engine reaches a running state (if it fails, the script prints the engine's logs; otherwise run `python deploy/agent_engine_logs.py` and send me the first error) |
 | Model | The agent answers a plain "hello" (if not, pass a different `--model`) |
 | GitHub fetch | A public repo scan works although the runtime may have no `git` (tarball fallback) |
 | Registration | Appears in Gemini Enterprise like the defect-fix agent |
 
 ## Stage 5: Behaviour in Gemini Enterprise
+First check the deployed agent from the shell (independent of Gemini Enterprise): `python deploy/query_agent_engine.py "Analyse https://github.com/DasBalvinderDas/code-mender, folder demo/vulnerable-app"`. Pass: the answer prints, and `reports_out/` contains the PDF and the `.md`.
 Run the prompts in [`DEMO_PROMPTS.md`](DEMO_PROMPTS.md) in order.
 | Check | Pass |
 |---|---|

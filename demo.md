@@ -29,6 +29,8 @@ python -c "from pathlib import Path; from codemender_agent.scanner import scan_p
 ```
 
 ## Part 2: Prompts to run in Gemini Enterprise
+To run the same prompts from a shell instead (and save the PDF and Markdown to `reports_out/`): `python deploy/query_agent_engine.py` (interactive) or pass one prompt as an argument.
+
 Expected numbers come from a scan of Juice Shop's default branch on 2026-10-22; the repo changes, so expect small differences.
 The scan itself takes a few seconds; cloning the repo is most of the time.
 

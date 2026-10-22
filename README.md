@@ -34,19 +34,26 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 gcloud auth application-default login
-gcloud services enable aiplatform.googleapis.com --project gebu-demo-sandbox
+gcloud services enable aiplatform.googleapis.com cloudbuild.googleapis.com --project gebu-demo-sandbox
 
-cp codemender_agent/.env.example codemender_agent/.env      # edit if needed (project, region, service account, model)
-./deploy/deploy.sh
+cp .env.example .env            # repository root; edit if needed (project, region, service account, model)
+python deploy/deploy_agent_engine.py --dry-run     # shows the settings and the command, deploys nothing
+python deploy/deploy_agent_engine.py               # deploys, saves AGENT_ENGINE_RESOURCE in .env, runs a smoke test
 ```
-`deploy.sh` runs `adk deploy agent_engine`, which builds a Dockerfile (Python 3.11, installs ADK and `codemender_agent/requirements.txt`)
-and sends the agent source inline, so there is no bucket. `codemender_agent/.env` (git-ignored) holds the settings:
-`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` and `GOOGLE_CLOUD_SERVICE_ACCOUNT` configure the deployment itself, and every other
-variable (here `CODEMENDER_MODEL`) is passed to the running agent. Use a Gemini model that is available in your project.
-The service account is the identity the agent runs as: it needs `roles/aiplatform.user`, and whoever deploys needs `roles/iam.serviceAccountUser` on it.
-The agent needs nothing else: it clones public repos over HTTPS and writes nothing to GCP.
+This follows the same pattern as the market-campaign-agent deploy: it runs `adk deploy agent_engine --project --region
+--agent_engine_config_file=<json>` where the JSON carries the runtime settings (`CODEMENDER_MODEL`) and the service account. ADK builds a
+Dockerfile (Python 3.11, installs ADK and `codemender_agent/requirements.txt`) and sends the agent source inline, so there is no bucket.
+Run it again later to update the same engine (the ID is saved in `.env`); `--new` creates a separate one.
+**Do not create a `.env` inside `codemender_agent/`**: `adk deploy` would read it and override the settings (the script stops if it finds one).
 
-To update an existing engine: `./deploy/deploy.sh <ENGINE_ID>` (the number at the end of the resource name the first deploy prints).
+The service account is the identity the agent runs as. It needs `roles/aiplatform.user`; whoever deploys needs
+`roles/iam.serviceAccountUser` on it. The agent needs nothing else: it clones public repos over HTTPS and writes nothing to GCP.
+
+Test and debug the deployed agent from the shell:
+```bash
+python deploy/query_agent_engine.py "Analyse https://github.com/juice-shop/juice-shop"   # prints the answer, saves the PDF and .md to reports_out/
+python deploy/agent_engine_logs.py                 # key lines of the engine's logs; add --full for everything
+```
 The container started by `adk api_server` also serves A2A (`--a2a` is on by default in ADK's deployment), which may help later.
 
 **Not verified yet (first deploy will tell):** the deploy call itself, the model name for your project, GitHub downloads from the
